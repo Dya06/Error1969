@@ -742,3 +742,266 @@ def draw_moon_surface(surf, y_base):
 def draw_bullet(surf, x, y, col=YELLOW):
     pygame.draw.circle(surf, col, (int(x), int(y)), 4)
     pygame.draw.circle(surf, WHITE, (int(x), int(y)), 2)
+
+# ─────────────────────────────────────────────
+#  ADDITIONAL SPRITE DRAWERS
+# ─────────────────────────────────────────────
+
+def draw_homing_orb(surf, x, y, frame=0):
+    """Glowing purple tracking projectile with pulsing halo and trailing sparks."""
+    t = frame * 0.05
+    pulse = 0.8 + 0.2 * math.sin(t * 4)
+    ix, iy = int(x), int(y)
+    # Outer glow halo (layered SRCALPHA circles)
+    for r in range(18, 6, -3):
+        alpha = int(35 * pulse * (r - 6) / 12)
+        gs = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(gs, (*VORTEX_PUR, alpha), (r, r), r)
+        surf.blit(gs, (ix - r, iy - r))
+    # Core orb — violet gradient
+    core_r = int(6 * pulse)
+    pygame.draw.circle(surf, DEEP_PURP, (ix, iy), core_r + 4)
+    pygame.draw.circle(surf, PURPLE, (ix, iy), core_r + 2)
+    pygame.draw.circle(surf, VORTEX_PUR, (ix, iy), core_r)
+    # Bright hot-spot
+    pygame.draw.circle(surf, WHITE, (ix - 2, iy - 2), max(1, core_r // 2))
+    # Trailing sparks (3 small dots behind the orb)
+    for i in range(3):
+        angle = math.pi + (i - 1) * 0.5 + math.sin(t * 3 + i) * 0.4
+        dist = 10 + 4 * i + int(3 * math.sin(t * 5 + i * 2))
+        sx = ix + int(dist * math.cos(angle))
+        sy = iy + int(dist * math.sin(angle))
+        spark_r = max(1, 3 - i)
+        spark_alpha = int(180 - i * 50)
+        ss = pygame.Surface((spark_r * 2, spark_r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(ss, (*PURPLE, spark_alpha), (spark_r, spark_r), spark_r)
+        surf.blit(ss, (sx - spark_r, sy - spark_r))
+    # Rim highlight
+    pygame.draw.circle(surf, VORTEX_PUR, (ix, iy), core_r + 4, 1)
+
+
+def draw_mini_eye(surf, x, y, frame=0):
+    """Smaller Watcher minion (~60% scale). Floating eyeball with tiny wings."""
+    t = frame * 0.05
+    bob = int(3 * math.sin(t * 1.3))
+    cy = y + bob
+    # Soft glow aura
+    for r in range(14, 6, -3):
+        alpha = int(45 * (r - 6) / 8)
+        gs = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(gs, (*PURPLE, alpha), (r, r), r)
+        surf.blit(gs, (x - r, cy - r))
+    # Eyeball body
+    pygame.draw.circle(surf, WHITE, (x, cy), 9)
+    pygame.draw.circle(surf, LIGHT_GREY, (x, cy), 9, 1)
+    # Iris — tracks slightly with time
+    iris_x = x + int(2 * math.cos(t * 0.6))
+    iris_y = cy + int(2 * math.sin(t * 0.8))
+    pygame.draw.circle(surf, PURPLE, (iris_x, iris_y), 5)
+    pygame.draw.circle(surf, BLACK, (iris_x, iris_y), 3)
+    pygame.draw.circle(surf, WHITE, (iris_x - 1, iris_y - 1), 1)
+    # Veins (3 thin red lines)
+    for i in range(3):
+        angle = i * math.pi * 2 / 3 + t * 0.15
+        vx = int(x + 7 * math.cos(angle))
+        vy = int(cy + 7 * math.sin(angle))
+        pygame.draw.line(surf, BLOOD_RED, (x, cy), (vx, vy), 1)
+    # Tiny wings
+    wing_flap = int(3 * math.sin(t * 4))
+    # Left wing
+    pts_l = [(x - 9, cy), (x - 18, cy - 7 + wing_flap), (x - 16, cy + 4)]
+    pygame.draw.polygon(surf, DEEP_PURP, pts_l)
+    pygame.draw.polygon(surf, PURPLE, pts_l, 1)
+    # Right wing
+    pts_r = [(x + 9, cy), (x + 18, cy - 7 + wing_flap), (x + 16, cy + 4)]
+    pygame.draw.polygon(surf, DEEP_PURP, pts_r)
+    pygame.draw.polygon(surf, PURPLE, pts_r, 1)
+
+
+def draw_laser_telegraph(surf, x1, y1, x2, y2, progress=0.0):
+    """Laser telegraph line. Thin flickering dots at low progress, thick beam at high."""
+    progress = max(0.0, min(1.0, progress))
+    dx, dy = x2 - x1, y2 - y1
+    length = math.hypot(dx, dy)
+    if length < 1:
+        return
+    nx, ny = dx / length, dy / length
+    if progress <= 0.7:
+        # Thin flickering dotted line
+        dot_spacing = 8
+        num_dots = max(1, int(length / dot_spacing))
+        flicker = 0.5 + 0.5 * math.sin(progress * 40 + x1 * 0.1)
+        alpha = int(80 + 120 * progress / 0.7 * flicker)
+        for i in range(num_dots):
+            frac = i / max(1, num_dots - 1)
+            px = int(x1 + dx * frac)
+            py = int(y1 + dy * frac)
+            ds = pygame.Surface((6, 6), pygame.SRCALPHA)
+            pygame.draw.circle(ds, (*LASER_RED, alpha), (3, 3), 2)
+            surf.blit(ds, (px - 3, py - 3))
+    else:
+        # Thick bright beam — glow, beam, white core
+        beam_prog = (progress - 0.7) / 0.3  # 0..1 within beam phase
+        # Outer glow
+        glow_w = int(6 + 10 * beam_prog)
+        gs = pygame.Surface((int(length) + glow_w * 2, glow_w * 2), pygame.SRCALPHA)
+        for r in range(glow_w, 2, -2):
+            alpha = int(40 * beam_prog * (glow_w - r) / glow_w)
+            pygame.draw.line(gs, (*LASER_RED, alpha), (glow_w, glow_w), (int(length) + glow_w, glow_w), r * 2)
+        # Rotate and blit the glow surface
+        angle_deg = math.degrees(math.atan2(-dy, dx))
+        gs_rot = pygame.transform.rotate(gs, angle_deg)
+        gr = gs_rot.get_rect(center=((x1 + x2) // 2, (y1 + y2) // 2))
+        surf.blit(gs_rot, gr)
+        # Main beam line
+        beam_thick = int(2 + 4 * beam_prog)
+        pygame.draw.line(surf, LASER_RED, (int(x1), int(y1)), (int(x2), int(y2)), beam_thick)
+        # White hot core
+        core_thick = max(1, int(beam_thick * 0.4))
+        pygame.draw.line(surf, WHITE, (int(x1), int(y1)), (int(x2), int(y2)), core_thick)
+
+
+def draw_asteroid(surf, x, y, size=20, seed=0):
+    """Floating rock/asteroid with deterministic random shape, craters, and highlight."""
+    rng = random.Random(seed)
+    num_verts = rng.randint(6, 8)
+    # Generate polygon vertices
+    verts = []
+    for i in range(num_verts):
+        angle = (2 * math.pi * i) / num_verts + rng.uniform(-0.3, 0.3)
+        r = size * rng.uniform(0.65, 1.0)
+        verts.append((int(x + r * math.cos(angle)), int(y + r * math.sin(angle))))
+    # Base rock — dark grey fill
+    base_col = (rng.randint(70, 90), rng.randint(65, 80), rng.randint(55, 70))
+    pygame.draw.polygon(surf, base_col, verts)
+    # Lighter edge outline
+    edge_col = (base_col[0] + 40, base_col[1] + 40, base_col[2] + 30)
+    pygame.draw.polygon(surf, edge_col, verts, 2)
+    # Highlight edge on upper-left portion
+    hl_col = (min(255, base_col[0] + 70), min(255, base_col[1] + 60), min(255, base_col[2] + 50))
+    for i in range(len(verts)):
+        v1 = verts[i]
+        v2 = verts[(i + 1) % len(verts)]
+        # Only highlight edges mostly above or to the left of center
+        mid_y = (v1[1] + v2[1]) / 2
+        if mid_y < y:
+            pygame.draw.line(surf, hl_col, v1, v2, 2)
+    # Crater dots (3-5 small dark circles)
+    num_craters = rng.randint(3, 5)
+    for _ in range(num_craters):
+        ca = rng.uniform(0, 2 * math.pi)
+        cd = rng.uniform(0, size * 0.5)
+        cx = int(x + cd * math.cos(ca))
+        cy_c = int(y + cd * math.sin(ca))
+        cr = rng.randint(1, max(2, size // 8))
+        crater_col = (max(0, base_col[0] - 25), max(0, base_col[1] - 25), max(0, base_col[2] - 20))
+        pygame.draw.circle(surf, crater_col, (cx, cy_c), cr)
+        pygame.draw.circle(surf, edge_col, (cx, cy_c), cr, 1)
+
+
+def draw_powerup(surf, x, y, kind='health', frame=0):
+    """Glowing pickup icon with pulsing halo and gentle bob animation."""
+    t = frame * 0.05
+    bob = int(3 * math.sin(t * 1.5))
+    pulse = 0.7 + 0.3 * math.sin(t * 3)
+    iy = y + bob
+    # Pick colour and glow based on kind
+    if kind == 'health':
+        glow_col = HP_GREEN
+        icon_col = POWER_GRN
+    elif kind == 'damage':
+        glow_col = ORANGE
+        icon_col = RED
+    else:  # shield
+        glow_col = SHIELD_BLU
+        icon_col = SHIELD_BLU
+    # Outer glow halo
+    for r in range(16, 6, -3):
+        alpha = int(50 * pulse * (r - 6) / 10)
+        gs = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(gs, (*glow_col, alpha), (r, r), r)
+        surf.blit(gs, (x - r, iy - r))
+    # Background circle
+    pygame.draw.circle(surf, DARK_GREY, (x, iy), 10)
+    pygame.draw.circle(surf, icon_col, (x, iy), 10, 2)
+    # Icon inside
+    if kind == 'health':
+        # Green cross
+        pygame.draw.rect(surf, icon_col, (x - 2, iy - 6, 4, 12))
+        pygame.draw.rect(surf, icon_col, (x - 6, iy - 2, 12, 4))
+        pygame.draw.rect(surf, WHITE, (x - 1, iy - 5, 2, 10))
+        pygame.draw.rect(surf, WHITE, (x - 5, iy - 1, 10, 2))
+    elif kind == 'damage':
+        # Arrow / sword pointing up
+        pygame.draw.line(surf, icon_col, (x, iy + 6), (x, iy - 5), 2)
+        pygame.draw.polygon(surf, icon_col, [(x, iy - 7), (x - 4, iy - 2), (x + 4, iy - 2)])
+        pygame.draw.line(surf, WHITE, (x, iy + 5), (x, iy - 4), 1)
+    else:
+        # Shield — small circle with highlight
+        pygame.draw.circle(surf, icon_col, (x, iy), 6, 2)
+        pygame.draw.arc(surf, WHITE, (x - 5, iy - 5, 10, 10), 0.5, 2.0, 2)
+    # Sparkle at top
+    spark_y = iy - 12 - int(2 * math.sin(t * 5))
+    spark_alpha = int(180 * pulse)
+    ss = pygame.Surface((6, 6), pygame.SRCALPHA)
+    pygame.draw.circle(ss, (*WHITE, spark_alpha), (3, 3), 2)
+    surf.blit(ss, (x - 3, spark_y - 3))
+
+
+def draw_gravity_well(surf, x, y, radius=60, frame=0):
+    """Swirling vortex with concentric rings, spiral arms, and dark center."""
+    t = frame * 0.05
+    ix, iy = int(x), int(y)
+    # Concentric semi-transparent rings (outer to inner, getting darker)
+    num_rings = 6
+    for i in range(num_rings):
+        frac = i / num_rings
+        r = int(radius * (1 - frac * 0.8))
+        alpha = int(25 + 50 * frac)
+        dark = int(140 * (1 - frac * 0.7))
+        ring_s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(ring_s, (dark, 10 + int(30 * (1 - frac)), dark + 40, alpha), (r, r), r)
+        pygame.draw.circle(ring_s, (*VORTEX_PUR, int(alpha * 0.6)), (r, r), r, 2)
+        surf.blit(ring_s, (ix - r, iy - r))
+    # Spiral arms (4 arms that rotate with time)
+    num_arms = 4
+    for arm in range(num_arms):
+        base_angle = (2 * math.pi * arm) / num_arms + t * 0.8
+        pts = []
+        for step in range(12):
+            frac = step / 11
+            a = base_angle + frac * math.pi * 1.5
+            r = radius * (1 - frac * 0.85)
+            px = ix + int(r * math.cos(a))
+            py = iy + int(r * math.sin(a))
+            pts.append((px, py))
+        if len(pts) >= 2:
+            arm_alpha = int(60 + 40 * math.sin(t * 2 + arm))
+            arm_s = pygame.Surface((radius * 2 + 4, radius * 2 + 4), pygame.SRCALPHA)
+            offset_pts = [(p[0] - ix + radius + 2, p[1] - iy + radius + 2) for p in pts]
+            pygame.draw.lines(arm_s, (*VORTEX_PUR, arm_alpha), False, offset_pts, 2)
+            surf.blit(arm_s, (ix - radius - 2, iy - radius - 2))
+    # Dark center core
+    core_r = max(4, int(radius * 0.15))
+    core_s = pygame.Surface((core_r * 2, core_r * 2), pygame.SRCALPHA)
+    pygame.draw.circle(core_s, (*DEEP_PURP, 220), (core_r, core_r), core_r)
+    pygame.draw.circle(core_s, (*BLACK, 200), (core_r, core_r), core_r // 2)
+    surf.blit(core_s, (ix - core_r, iy - core_r))
+    # Bright ring at event horizon
+    horizon_r = core_r + 3
+    hs = pygame.Surface((horizon_r * 2, horizon_r * 2), pygame.SRCALPHA)
+    pulse = int(140 + 60 * math.sin(t * 4))
+    pygame.draw.circle(hs, (*PURPLE, pulse), (horizon_r, horizon_r), horizon_r, 2)
+    surf.blit(hs, (ix - horizon_r, iy - horizon_r))
+    # Orbiting particle dots
+    for i in range(5):
+        orbit_a = t * (1.2 + i * 0.3) + i * math.pi * 2 / 5
+        orbit_r = int(radius * (0.3 + 0.15 * i))
+        ox = ix + int(orbit_r * math.cos(orbit_a))
+        oy = iy + int(orbit_r * math.sin(orbit_a))
+        dot_alpha = int(120 + 80 * math.sin(t * 3 + i))
+        ds = pygame.Surface((6, 6), pygame.SRCALPHA)
+        pygame.draw.circle(ds, (*VORTEX_PUR, dot_alpha), (3, 3), 2)
+        surf.blit(ds, (ox - 3, oy - 3))
+
+
