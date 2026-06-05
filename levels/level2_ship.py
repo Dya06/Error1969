@@ -20,7 +20,7 @@ from graphics.sprites import draw_astronaut
 S2_TS = 32
 S2_COLS = 44
 S2_ROWS = 30
-S2_HUD = 58
+S2_HUD = 70
 S2_VOID = 0
 S2_FLOOR = 1
 WORLD_W = S2_COLS * S2_TS
@@ -73,17 +73,17 @@ def _build_ship_map():
 S2_MAP = _build_ship_map()
 
 S2_ROOMS = [
-    {"name": "CAFETERIA", "rect": (15, 2, 14, 8), "col": (180, 135, 55)},
-    {"name": "WEAPONS", "rect": (30, 2, 8, 7), "col": (200, 55, 55)},
-    {"name": "NAVIGATION", "rect": (38, 4, 5, 5), "col": (55, 150, 230)},
-    {"name": "SHIELDS", "rect": (31, 12, 8, 6), "col": (55, 210, 210)},
-    {"name": "LOWER ENGINE", "rect": (25, 21, 8, 6), "col": (230, 120, 40)},
-    {"name": "UPPER ENGINE", "rect": (10, 21, 8, 6), "col": (230, 120, 40)},
-    {"name": "REACTOR", "rect": (2, 11, 8, 8), "col": (185, 70, 210)},
-    {"name": "SECURITY", "rect": (10, 12, 7, 6), "col": (70, 200, 90)},
-    {"name": "MED-BAY", "rect": (18, 12, 8, 7), "col": (80, 230, 140)},
-    {"name": "ELECTRICAL", "rect": (4, 21, 7, 6), "col": (230, 200, 55)},
-    {"name": "STORAGE", "rect": (17, 21, 9, 6), "col": (120, 130, 165)},
+    {"name": "CAFETERIA", "rect": (15, 2, 14, 8), "col": (170, 115, 40)},
+    {"name": "WEAPONS", "rect": (30, 2, 8, 7), "col": (210, 45, 55)},
+    {"name": "NAVIGATION", "rect": (38, 4, 5, 5), "col": (40, 170, 220)},
+    {"name": "SHIELDS", "rect": (31, 12, 8, 6), "col": (30, 150, 170)},
+    {"name": "LOWER ENGINE", "rect": (25, 21, 8, 6), "col": (220, 95, 30)},
+    {"name": "UPPER ENGINE", "rect": (10, 21, 8, 6), "col": (220, 95, 30)},
+    {"name": "REACTOR", "rect": (2, 11, 8, 8), "col": (165, 55, 210)},
+    {"name": "SECURITY", "rect": (10, 12, 7, 6), "col": (35, 135, 120)},
+    {"name": "MED-BAY", "rect": (18, 12, 8, 7), "col": (80, 210, 105)},
+    {"name": "ELECTRICAL", "rect": (4, 21, 7, 6), "col": (190, 45, 35)},
+    {"name": "STORAGE", "rect": (17, 21, 9, 6), "col": (100, 110, 140)},
 ]
 
 S2_TASKS_DEF = [
@@ -159,6 +159,7 @@ class Level2:
         self.exp_speed = 2.55
         self.exp_path = []
         self.path_timer = 0
+        self.exp_facing = 1
         self.fe_frames = self._load_failed_experiment_frames()
         self.fe_anim_speed = 5
 
@@ -189,6 +190,9 @@ class Level2:
         self.room_name_timer = 90
         self.last_room_name = _room_at_world(self.px, self.py)["name"]
         self._map_surf = self._render_map()
+        self.zoom = 1.75   # try 1.6 to 2.0
+        self.view_w = SCREEN_W / self.zoom
+        self.view_h = (SCREEN_H - self.HUD_H) / self.zoom
 
     # ─────────────────────────────────────────────
     # ASSETS
@@ -202,7 +206,7 @@ class Level2:
                 frames.append(self._make_missing_fe_frame(i))
                 continue
             img = pygame.image.load(path).convert_alpha()
-            img = pygame.transform.smoothscale(img, (76, 76))
+            img = pygame.transform.scale(img, (66, 66))
             frames.append(img)
         return frames
 
@@ -221,96 +225,336 @@ class Level2:
     # ─────────────────────────────────────────────
     def _render_map(self):
         surf = pygame.Surface((WORLD_W, WORLD_H))
-        surf.fill((1, 2, 8))
+        surf.fill((2, 3, 9))
 
+        # Retro palette
+        void_col = (2, 3, 9)
+        floor_a = (22, 25, 36)
+        floor_b = (27, 31, 44)
+        floor_line = (12, 14, 22)
+        wall_dark = (8, 10, 18)
+        wall_mid = (46, 58, 82)
+        wall_hi = (92, 110, 145)
+
+    # ── Base floor tiles ─────────────────────────────
         for r in range(S2_ROWS):
             for c in range(S2_COLS):
                 x = c * S2_TS
                 y = r * S2_TS
-                if S2_MAP[r][c] == S2_FLOOR:
-                    base = (25, 29, 42) if (c + r) % 2 == 0 else (21, 25, 36)
-                    pygame.draw.rect(surf, base, (x, y, S2_TS, S2_TS))
-                    pygame.draw.rect(surf, (14, 17, 26), (x, y, S2_TS, S2_TS), 1)
-                else:
-                    pygame.draw.rect(surf, (2, 3, 9), (x, y, S2_TS, S2_TS))
 
+                if S2_MAP[r][c] == S2_VOID:
+                    pygame.draw.rect(surf, void_col, (x, y, S2_TS, S2_TS))
+                    continue
+
+                # Pixel panel floor
+                base = floor_a if (c + r) % 2 == 0 else floor_b
+                pygame.draw.rect(surf, base, (x, y, S2_TS, S2_TS))
+
+                # Pixel inner panel, gives tile depth
+                pygame.draw.rect(surf, (base[0] + 5, base[1] + 5, base[2] + 7), (x + 3, y + 3, 26, 26))
+                pygame.draw.rect(surf, floor_line, (x, y, S2_TS, S2_TS), 1)
+
+                # Tiny pixel grime
+                if (c * 17 + r * 11) % 7 == 0:
+                    pygame.draw.rect(surf, (10, 12, 18), (x + 7, y + 20, 6, 2))
+                if (c * 13 + r * 19) % 11 == 0:
+                    pygame.draw.rect(surf, (40, 44, 56), (x + 21, y + 8, 3, 3))
+
+    # ── Room colour overlays and pixel borders ───────
         for room in S2_ROOMS:
             c0, r0, cw, rh = room["rect"]
             col = room["col"]
-            rect = pygame.Rect(c0 * S2_TS, r0 * S2_TS, cw * S2_TS, rh * S2_TS)
-            overlay = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
-            overlay.fill((*col, 18))
-            surf.blit(overlay, rect.topleft)
-            pygame.draw.rect(surf, tuple(max(0, int(v * 0.55)) for v in col), rect, 3)
-            pygame.draw.rect(surf, col, rect.inflate(-8, -8), 1)
-            label = font_tiny.render(room["name"], False, col)
-            surf.blit(label, (rect.centerx - label.get_width() // 2, rect.top + 8))
 
+            rect = pygame.Rect(c0 * S2_TS, r0 * S2_TS, cw * S2_TS, rh * S2_TS)
+
+            # Dark coloured tint, very subtle
+            tint = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+            tint.fill((*col, 18))
+            surf.blit(tint, rect.topleft)
+
+            # Pixel-style room border: no rounded corners
+            border_dark = tuple(max(0, int(v * 0.30)) for v in col)
+            border_mid = tuple(max(0, int(v * 0.65)) for v in col)
+
+            pygame.draw.rect(surf, border_dark, rect, 4)
+            pygame.draw.rect(surf, border_mid, rect.inflate(-6, -6), 2)
+
+            # Corner pixel blocks
+            corner = 10
+            for cx, cy in [
+                (rect.left, rect.top),
+                (rect.right - corner, rect.top),
+                (rect.left, rect.bottom - corner),
+                (rect.right - corner, rect.bottom - corner),
+            ]:
+                pygame.draw.rect(surf, col, (cx, cy, corner, corner))
+
+            # Room label as small terminal tag
+            label = font_tiny.render(room["name"], False, col)
+            label_bg = pygame.Rect(
+                rect.centerx - label.get_width() // 2 - 6,
+                rect.top + 7,
+                label.get_width() + 12,
+                label.get_height() + 4
+            )
+            pygame.draw.rect(surf, (5, 7, 14), label_bg)
+            pygame.draw.rect(surf, border_mid, label_bg, 1)
+            surf.blit(label, (label_bg.x + 6, label_bg.y + 2))
+
+        # ── Pixel walls where floor meets void ───────────
         for r in range(S2_ROWS):
             for c in range(S2_COLS):
                 if S2_MAP[r][c] != S2_FLOOR:
                     continue
+
                 x = c * S2_TS
                 y = r * S2_TS
-                wall_col = (75, 88, 120)
-                shadow_col = (10, 12, 20)
-                for nc, nr, side in [(c, r - 1, "top"), (c, r + 1, "bottom"), (c - 1, r, "left"), (c + 1, r, "right")]:
-                    if not _is_floor_tile(nc, nr):
-                        if side == "top":
-                            pygame.draw.line(surf, wall_col, (x, y), (x + S2_TS, y), 4)
-                            pygame.draw.line(surf, shadow_col, (x, y + 4), (x + S2_TS, y + 4), 1)
-                        elif side == "bottom":
-                            pygame.draw.line(surf, wall_col, (x, y + S2_TS), (x + S2_TS, y + S2_TS), 4)
-                        elif side == "left":
-                            pygame.draw.line(surf, wall_col, (x, y), (x, y + S2_TS), 4)
-                        elif side == "right":
-                            pygame.draw.line(surf, wall_col, (x + S2_TS, y), (x + S2_TS, y + S2_TS), 4)
+
+                for nc, nr, side in [
+                    (c, r - 1, "top"),
+                    (c, r + 1, "bottom"),
+                    (c - 1, r, "left"),
+                    (c + 1, r, "right")
+                ]:
+                    if _is_floor_tile(nc, nr):
+                        continue
+
+                    if side == "top":
+                        pygame.draw.rect(surf, wall_dark, (x, y, S2_TS, 8))
+                        pygame.draw.rect(surf, wall_hi, (x, y, S2_TS, 3))
+                        pygame.draw.rect(surf, wall_mid, (x, y + 3, S2_TS, 3))
+
+                    elif side == "bottom":
+                        pygame.draw.rect(surf, wall_dark, (x, y + S2_TS - 8, S2_TS, 8))
+                        pygame.draw.rect(surf, wall_mid, (x, y + S2_TS - 6, S2_TS, 3))
+
+                    elif side == "left":
+                        pygame.draw.rect(surf, wall_dark, (x, y, 8, S2_TS))
+                        pygame.draw.rect(surf, wall_hi, (x, y, 3, S2_TS))
+                        pygame.draw.rect(surf, wall_mid, (x + 3, y, 3, S2_TS))
+
+                    elif side == "right":
+                        pygame.draw.rect(surf, wall_dark, (x + S2_TS - 8, y, 8, S2_TS))
+                        pygame.draw.rect(surf, wall_mid, (x + S2_TS - 6, y, 3, S2_TS))
+
+        # ── Dark outside edge shadow ─────────────────────
+        for r in range(S2_ROWS):
+            for c in range(S2_COLS):
+                if S2_MAP[r][c] == S2_VOID:
+                    continue
+
+                x = c * S2_TS
+                y = r * S2_TS
+
+                # Small black pixels near edges to make layout feel grimy
+                if (c * 5 + r * 9) % 13 == 0:
+                    pygame.draw.rect(surf, (7, 8, 13), (x + 4, y + 4, 5, 5))
 
         self._draw_static_decor_to_map(surf)
         return surf
 
     def _draw_static_decor_to_map(self, surf):
+    
         def tile_rect(tc, tr, cw, rh):
             return pygame.Rect(tc * S2_TS, tr * S2_TS, cw * S2_TS, rh * S2_TS)
 
+        def px_rect(rect, fill, outline=None):
+            pygame.draw.rect(surf, fill, rect)
+            if outline:
+                pygame.draw.rect(surf, outline, rect, 2)
+
+    # ── CAFETERIA: blocky tables ─────────────────────
         for tr in [4, 6, 8]:
-            rect = tile_rect(18, tr, 4, 1)
-            pygame.draw.rect(surf, (70, 52, 32), rect, border_radius=8)
-            pygame.draw.rect(surf, (155, 120, 65), rect, 2, border_radius=8)
+            rect = tile_rect(18, tr, 4, 1).inflate(-4, -6)
 
+            # Shadow
+            pygame.draw.rect(surf, (20, 15, 10), rect.move(3, 4))
+
+            # Table
+            px_rect(rect, (82, 58, 34), (175, 130, 70))
+
+            # Pixel highlights
+            pygame.draw.rect(surf, (120, 86, 48), (rect.x + 5, rect.y + 4, rect.w - 10, 4))
+            pygame.draw.rect(surf, (40, 28, 18), (rect.x + 5, rect.bottom - 6, rect.w - 10, 3))
+
+            # Chairs
+            for cx in [rect.left - 13, rect.right + 5]:
+                pygame.draw.rect(surf, (52, 38, 24), (cx, rect.y + 4, 9, 16))
+                pygame.draw.rect(surf, (110, 80, 45), (cx, rect.y + 4, 9, 16), 1)
+
+        # ── WEAPONS: red pixel consoles ──────────────────
         for tc in [31, 34]:
-            rect = tile_rect(tc, 3, 2, 2)
-            pygame.draw.rect(surf, (70, 15, 18), rect, border_radius=6)
-            pygame.draw.rect(surf, (180, 45, 45), rect, 2, border_radius=6)
+            rect = tile_rect(tc, 3, 2, 2).inflate(-5, -5)
+            pygame.draw.rect(surf, (25, 5, 8), rect.move(3, 4))
+            px_rect(rect, (72, 16, 20), (190, 45, 50))
 
-        rect = tile_rect(39, 5, 3, 2)
-        pygame.draw.rect(surf, (5, 35, 70), rect, border_radius=6)
-        pygame.draw.rect(surf, CYAN, rect, 2, border_radius=6)
+            # Console screen
+            screen = pygame.Rect(rect.x + 10, rect.y + 8, rect.w - 20, 18)
+            px_rect(screen, (18, 4, 8), (220, 60, 65))
+            pygame.draw.rect(surf, (255, 70, 80), (screen.centerx - 2, screen.centery - 2, 4, 4))
 
+            # Pixel buttons
+            for i in range(3):
+                pygame.draw.rect(surf, (200, 60, 60), (rect.x + 10 + i * 12, rect.bottom - 12, 6, 6))
+
+        # ── NAVIGATION: blue terminal ────────────────────
+        rect = tile_rect(39, 5, 3, 2).inflate(-5, -5)
+        pygame.draw.rect(surf, (0, 10, 20), rect.move(3, 4))
+        px_rect(rect, (5, 35, 70), CYAN)
+
+        # Pixel star map
+        screen = pygame.Rect(rect.x + 8, rect.y + 8, rect.w - 16, rect.h - 16)
+        px_rect(screen, (1, 12, 26), (0, 120, 170))
+        for sx, sy in [(screen.x + 12, screen.y + 8), (screen.x + 40, screen.y + 18), (screen.x + 60, screen.y + 9)]:
+            pygame.draw.rect(surf, WHITE, (sx, sy, 2, 2))
+
+        # ── MED-BAY: pixel beds ──────────────────────────
         for tc in [19, 23]:
-            rect = tile_rect(tc, 14, 3, 1)
-            pygame.draw.rect(surf, (20, 70, 58), rect, border_radius=6)
-            pygame.draw.rect(surf, (100, 230, 170), rect, 2, border_radius=6)
+            rect = tile_rect(tc, 14, 3, 1).inflate(-4, -5)
+            pygame.draw.rect(surf, (5, 20, 18), rect.move(3, 4))
+            px_rect(rect, (18, 72, 58), (100, 235, 170))
 
+            # Pillow
+            pygame.draw.rect(surf, (205, 215, 225), (rect.right - 24, rect.y + 5, 16, 10))
+            pygame.draw.rect(surf, (70, 110, 100), (rect.x + 6, rect.y + 5, rect.w - 36, 6))
+
+        # ── STORAGE: pixel crates ────────────────────────
         for tc, tr in [(18, 22), (20, 22), (22, 22), (18, 24), (21, 24)]:
-            rect = tile_rect(tc, tr, 1, 1).inflate(-4, -4)
-            pygame.draw.rect(surf, (70, 55, 35), rect)
-            pygame.draw.rect(surf, (145, 110, 65), rect, 2)
+            rect = tile_rect(tc, tr, 1, 1).inflate(-5, -5)
+            pygame.draw.rect(surf, (22, 16, 10), rect.move(3, 4))
+            px_rect(rect, (74, 55, 34), (150, 110, 65))
 
+            # Crate cross
+            pygame.draw.line(surf, (105, 78, 46), rect.midleft, rect.midright, 2)
+            pygame.draw.line(surf, (105, 78, 46), rect.midtop, rect.midbottom, 2)
+
+        # ── ELECTRICAL: fuse boxes and wires ─────────────
         for tc in [5, 7, 9]:
-            rect = tile_rect(tc, 22, 1, 2).inflate(-3, -3)
-            pygame.draw.rect(surf, (60, 50, 12), rect)
-            pygame.draw.rect(surf, GOLD, rect, 1)
+            rect = tile_rect(tc, 22, 1, 2).inflate(-5, -5)
+            pygame.draw.rect(surf, (20, 16, 2), rect.move(3, 4))
+            px_rect(rect, (64, 54, 10), GOLD)
 
+            # Fuses
+            for j in range(4):
+                y = rect.y + 8 + j * 10
+                col = GOLD if j % 2 == 0 else (220, 90, 20)
+                pygame.draw.rect(surf, col, (rect.x + 7, y, rect.w - 14, 4))
+
+            # Wires
+            pygame.draw.line(surf, (200, 30, 40), (rect.right, rect.y + 12), (rect.right + 16, rect.y + 20), 2)
+            pygame.draw.line(surf, (40, 120, 220), (rect.right, rect.y + 26), (rect.right + 16, rect.y + 34), 2)
+
+        # ── ENGINES: blocky thruster machines ────────────
         for tc in [11, 26]:
-            rect = tile_rect(tc, 23, 3, 2)
-            points = [rect.topleft, rect.topright, (rect.right + 16, rect.centery), rect.bottomright, rect.bottomleft]
-            pygame.draw.polygon(surf, (75, 45, 25), points)
-            pygame.draw.polygon(surf, ORANGE, points, 2)
+            rect = tile_rect(tc, 23, 3, 2).inflate(-4, -4)
 
-        rect = tile_rect(4, 13, 3, 3)
-        pygame.draw.rect(surf, (60, 15, 70), rect, border_radius=8)
-        pygame.draw.rect(surf, PURPLE, rect, 2, border_radius=8)
+            # Shadow
+            pygame.draw.rect(surf, (20, 10, 5), rect.move(4, 5))
+
+            body = pygame.Rect(rect.x, rect.y, rect.w - 14, rect.h)
+            nozzle = pygame.Rect(body.right - 2, rect.y + 10, 24, rect.h - 20)
+
+            px_rect(body, (78, 45, 24), ORANGE)
+            px_rect(nozzle, (45, 28, 20), (230, 120, 40))
+
+            # Engine pixels
+            pygame.draw.rect(surf, (140, 75, 35), (body.x + 8, body.y + 8, body.w - 16, 6))
+            pygame.draw.rect(surf, (30, 16, 10), (body.x + 8, body.bottom - 14, body.w - 16, 6))
+
+        # ── REACTOR: purple pixel core ───────────────────
+        rect = tile_rect(4, 13, 3, 3).inflate(-5, -5)
+        pygame.draw.rect(surf, (18, 4, 24), rect.move(4, 5))
+        px_rect(rect, (58, 15, 70), PURPLE)
+
+        # Core squares
+        core = pygame.Rect(rect.centerx - 16, rect.centery - 16, 32, 32)
+        px_rect(core, (30, 0, 45), (190, 70, 220))
+        pygame.draw.rect(surf, (230, 120, 255), (core.centerx - 5, core.centery - 5, 10, 10))
+
+        # ── SHIP GRIME: random-ish deterministic pixel damage ─
+        # Uses tile positions, so it stays the same every run.
+        for r in range(S2_ROWS):
+            for c in range(S2_COLS):
+                if S2_MAP[r][c] != S2_FLOOR:
+                    continue
+
+                x = c * S2_TS
+                y = r * S2_TS
+                seed = c * 31 + r * 17
+
+                if seed % 19 == 0:
+                    pygame.draw.rect(surf, (8, 10, 16), (x + 6, y + 24, 10, 3))
+                if seed % 23 == 0:
+                    pygame.draw.rect(surf, (45, 48, 60), (x + 20, y + 6, 4, 4))
+                if seed % 29 == 0:
+                    pygame.draw.line(surf, (12, 14, 22), (x + 5, y + 5), (x + 17, y + 9), 1)
+
+                # ── SHIP GRIME: random-ish deterministic pixel damage ─
+        # Uses tile positions, so it stays the same every run.
+        for r in range(S2_ROWS):
+            for c in range(S2_COLS):
+                if S2_MAP[r][c] != S2_FLOOR:
+                    continue
+
+                x = c * S2_TS
+                y = r * S2_TS
+                seed = c * 31 + r * 17
+
+                if seed % 19 == 0:
+                    pygame.draw.rect(surf, (8, 10, 16), (x + 6, y + 24, 10, 3))
+                if seed % 23 == 0:
+                    pygame.draw.rect(surf, (45, 48, 60), (x + 20, y + 6, 4, 4))
+                if seed % 29 == 0:
+                    pygame.draw.line(surf, (12, 14, 22), (x + 5, y + 5), (x + 17, y + 9), 1)
+
+        # ── ENVIRONMENTAL STORYTELLING / DAMAGE ─────────────
+
+        damage_marks = [
+            ((20, 15), (22, 16), (120, 15, 25)),
+            ((33, 6), (35, 7), (120, 15, 25)),
+            ((7, 23), (9, 24), (110, 20, 20)),
+            ((23, 16), (25, 16), (95, 20, 30)),
+        ]
+
+        for start, end, col in damage_marks:
+            x1, y1 = _tile_to_world(*start)
+            x2, y2 = _tile_to_world(*end)
+
+            pygame.draw.line(surf, col, (x1, y1), (x2, y2), 3)
+
+            for i in range(4):
+                px = x1 + (x2 - x1) * i // 4
+                py = y1 + (y2 - y1) * i // 4
+                pygame.draw.rect(surf, col, (px, py, 5, 3))
+
+        # Scattered debris
+        debris_tiles = [
+            (16, 7), (24, 5), (32, 8), (36, 14),
+            (6, 17), (12, 15), (20, 24), (28, 26),
+            (41, 7), (8, 25), (23, 13)
+        ]
+
+        for tc, tr in debris_tiles:
+            x = tc * S2_TS
+            y = tr * S2_TS
+
+            pygame.draw.rect(surf, (35, 38, 48), (x + 7, y + 9, 12, 5))
+            pygame.draw.rect(surf, (70, 75, 90), (x + 9, y + 18, 7, 4))
+            pygame.draw.line(surf, (10, 12, 18), (x + 5, y + 24), (x + 21, y + 27), 1)
+
+        # Broken panels
+        broken_panels = [
+            (31, 4), (39, 6), (21, 15), (5, 22), (18, 5)
+        ]
+
+        for tc, tr in broken_panels:
+            x = tc * S2_TS
+            y = tr * S2_TS
+
+            pygame.draw.rect(surf, (8, 8, 12), (x + 6, y + 6, 20, 18))
+            pygame.draw.rect(surf, (180, 30, 40), (x + 6, y + 6, 20, 18), 1)
+            pygame.draw.rect(surf, (220, 70, 80), (x + 11, y + 12, 3, 3))
+            pygame.draw.rect(surf, (220, 70, 80), (x + 18, y + 16, 3, 3))
 
     # ─────────────────────────────────────────────
     # UPDATE
@@ -353,7 +597,7 @@ class Level2:
             self.facing = dx
 
         speed = self.speed
-        if self.active_task is not None and (keys[pygame.K_e] or keys[pygame.K_SPACE]):
+        if self.active_task is not None and keys[pygame.K_e]:
             speed *= 0.35
 
         self.px, self.py = self._move(self.px, self.py, dx * speed, dy * speed)
@@ -368,12 +612,11 @@ class Level2:
         return x, y
 
     def _update_camera(self):
-        view_w = SCREEN_W
-        view_h = SCREEN_H - self.HUD_H
-        self.cam_x += (self.px - view_w / 2 - self.cam_x) * 0.10
-        self.cam_y += (self.py - view_h / 2 - self.cam_y) * 0.10
-        self.cam_x = clamp(self.cam_x, 0, max(0, WORLD_W - view_w))
-        self.cam_y = clamp(self.cam_y, 0, max(0, WORLD_H - view_h))
+        self.cam_x += (self.px - self.view_w / 2 - self.cam_x) * 0.12
+        self.cam_y += (self.py - self.view_h / 2 - self.cam_y) * 0.12
+
+        self.cam_x = clamp(self.cam_x, 0, max(0, WORLD_W - self.view_w))
+        self.cam_y = clamp(self.cam_y, 0, max(0, WORLD_H - self.view_h))
 
     def _update_room_name(self):
         room_name = _room_at_world(self.px, self.py)["name"]
@@ -390,7 +633,7 @@ class Level2:
             d = math.hypot(self.px - task["wx"], self.py - task["wy"])
             if d < 42:
                 self.active_task = task
-                if keys[pygame.K_e] or keys[pygame.K_SPACE]:
+                if keys[pygame.K_e]:
                     task["progress"] = min(100, task["progress"] + 0.55)
                     if task["progress"] >= 100:
                         task["done"] = True
@@ -419,8 +662,15 @@ class Level2:
             if dist < self.exp_speed + 1:
                 self.exp_path.pop(0)
             elif dist > 0:
-                self.ex += (dx / dist) * self.exp_speed
-                self.ey += (dy / dist) * self.exp_speed
+                move_x = (dx / dist) * self.exp_speed
+                move_y = (dy / dist) * self.exp_speed
+
+                self.ex += move_x
+                self.ey += move_y
+
+                # Face based on actual movement direction
+                if abs(move_x) > 0.1:
+                    self.exp_facing = 1 if move_x > 0 else -1
 
         dist_to_player = math.hypot(self.px - self.ex, self.py - self.ey)
         if dist_to_player < 34 and self.attack_cooldown <= 0:
@@ -440,18 +690,39 @@ class Level2:
     def _repaired_count(self):
         return sum(1 for t in self.tasks if t["done"])
 
+    def _world_to_view(self, wx, wy):
+        """World position -> unzoomed camera view position."""
+        return int(wx - self.cam_x), int(wy - self.cam_y)
+
     def _world_to_screen(self, wx, wy):
-        return int(wx - self.cam_x), int(wy - self.cam_y) + self.HUD_H
+        """World position -> final screen position after zoom."""
+        vx, vy = self._world_to_view(wx, wy)
+        return int(vx * self.zoom), int(vy * self.zoom) + self.HUD_H
 
     # ─────────────────────────────────────────────
     # DRAWING
     # ─────────────────────────────────────────────
     def draw(self, surf):
-        surf.blit(self._map_surf, (-int(self.cam_x), -int(self.cam_y) + self.HUD_H))
-        self._draw_dynamic_room_lights(surf)
-        self._draw_tasks(surf)
-        self._draw_failed_experiment(surf)
-        self._draw_player(surf)
+        game_h = SCREEN_H - self.HUD_H
+
+        # Create an offscreen camera view in world scale
+        view_surf = pygame.Surface((int(self.view_w), int(self.view_h)))
+        view_rect = pygame.Rect(int(self.cam_x), int(self.cam_y), int(self.view_w), int(self.view_h))
+
+        # Draw cropped map into the camera view
+        view_surf.blit(self._map_surf, (0, 0), area=view_rect)
+
+        # Draw all gameplay elements onto the camera view
+        self._draw_dynamic_room_lights(view_surf)
+        self._draw_tasks(view_surf)
+        self._draw_failed_experiment(view_surf)
+        self._draw_player(view_surf)
+
+        # Scale the camera view up to the real screen
+        zoomed_view = pygame.transform.scale(view_surf, (SCREEN_W, game_h))
+        surf.blit(zoomed_view, (0, self.HUD_H))
+
+        # Screen-space stuff
         update_particles(surf)
         self._draw_horror_lighting(surf)
         self._draw_hud(surf)
@@ -460,28 +731,37 @@ class Level2:
         self._draw_flash_message(surf)
 
     def _draw_dynamic_room_lights(self, surf):
+        """Animated room glows drawn inside the zoomed camera view."""
+        sw, sh = surf.get_width(), surf.get_height()
+
+        # Emergency red flash
         if (self.t // 45) % 2 == 0:
-            overlay = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            overlay.fill((45, 0, 0, 18))
+            overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+            overlay.fill((40, 0, 0, 18))
             surf.blit(overlay, (0, 0))
 
+        # Reactor glow
         rx, ry = _tile_to_world(5, 14)
-        sx, sy = self._world_to_screen(rx, ry)
+        vx, vy = self._world_to_view(rx, ry)
         glow_size = int(70 + 10 * math.sin(self.t * 0.08))
         gs = pygame.Surface((glow_size * 2, glow_size * 2), pygame.SRCALPHA)
         pygame.draw.circle(gs, (150, 0, 210, 55), (glow_size, glow_size), glow_size)
-        surf.blit(gs, (sx - glow_size, sy - glow_size))
+        surf.blit(gs, (vx - glow_size, vy - glow_size))
 
+        # Engine glow
         for tx, ty in [(12, 24), (28, 24)]:
             wx, wy = _tile_to_world(tx, ty)
-            sx, sy = self._world_to_screen(wx, wy)
-            pygame.draw.circle(surf, (255, 120, 35), (sx, sy), 6 + int(3 * math.sin(self.t * 0.12)))
+            vx, vy = self._world_to_view(wx, wy)
+            pygame.draw.circle(surf, (255, 120, 35), (vx, vy), 6 + int(3 * math.sin(self.t * 0.12)))
 
     def _draw_tasks(self, surf):
         for task in self.tasks:
-            sx, sy = self._world_to_screen(task["wx"], task["wy"])
-            if -80 < sx < SCREEN_W + 80 and self.HUD_H - 80 < sy < SCREEN_H + 80:
-                self._draw_task_panel(surf, sx, sy, task)
+            vx, vy = self._world_to_view(task["wx"], task["wy"])
+
+            if not (-80 < vx < surf.get_width() + 80 and -80 < vy < surf.get_height() + 80):
+                continue
+
+            self._draw_task_panel(surf, vx, vy, task)
 
     def _draw_task_panel(self, surf, x, y, task):
         col = task["col"]
@@ -507,10 +787,24 @@ class Level2:
                 pygame.draw.rect(surf, col, (px - 4, y - 16, 8, 22), 1)
             pygame.draw.line(surf, col, (x - 20, y + 8), (x + 20, y + 8), 2)
         elif kind == "nav":
-            pygame.draw.circle(surf, (0, 25, 35), (x, y - 3), 16)
-            pygame.draw.circle(surf, col, (x, y - 3), 16, 2)
-            angle = self.t * 0.08
-            pygame.draw.line(surf, col, (x, y - 3), (x + int(14 * math.cos(angle)), y - 3 + int(14 * math.sin(angle))), 2)
+            # Pixel navigation terminal instead of radar circle
+            screen_rect = pygame.Rect(x - 20, y - 18, 40, 26)
+
+            pygame.draw.rect(surf, (2, 10, 20), screen_rect)
+            pygame.draw.rect(surf, col, screen_rect, 2)
+
+            # Pixel star map
+            pygame.draw.rect(surf, (0, 180, 220), (x - 12, y - 10, 3, 3))
+            pygame.draw.rect(surf, (0, 180, 220), (x + 4, y - 5, 3, 3))
+            pygame.draw.rect(surf, (0, 180, 220), (x + 13, y - 13, 2, 2))
+
+            # Route line
+            pygame.draw.line(surf, col, (x - 11, y - 9), (x + 5, y - 4), 1)
+            pygame.draw.line(surf, col, (x + 5, y - 4), (x + 14, y - 12), 1)
+
+            # Small blinking cursor
+            if self.t % 40 < 20:
+                pygame.draw.rect(surf, WHITE, (x - 16, y + 5, 5, 3))
         elif kind == "reactor":
             pulse = int(100 + 60 * math.sin(self.t * 0.12))
             pygame.draw.circle(surf, (pulse, 0, 160), (x, y - 3), 16)
@@ -531,82 +825,240 @@ class Level2:
             draw_text(surf, "DONE", font_tiny, (80, 230, 110), x, y + 31)
 
     def _draw_failed_experiment(self, surf):
-        sx, sy = self._world_to_screen(self.ex, self.ey)
-        if not (-100 < sx < SCREEN_W + 100 and self.HUD_H - 100 < sy < SCREEN_H + 100):
+        vx, vy = self._world_to_view(self.ex, self.ey)
+
+        if not (-100 < vx < surf.get_width() + 100 and -100 < vy < surf.get_height() + 100):
             return
 
         d = math.hypot(self.px - self.ex, self.py - self.ey)
-        glow_r = 44
-        gs = pygame.Surface((glow_r * 2, glow_r * 2), pygame.SRCALPHA)
-        pygame.draw.circle(gs, (180, 0, 0, 65), (glow_r, glow_r), glow_r)
-        surf.blit(gs, (sx - glow_r, sy - glow_r))
 
         frame_index = (self.exp_frame // self.fe_anim_speed) % len(self.fe_frames)
         img = self.fe_frames[frame_index]
-        if self.ex < self.px:
+
+        # Flip based on movement direction
+        # If this is reversed, swap the condition.
+        if self.exp_facing == -1:
             img = pygame.transform.flip(img, True, False)
-        rect = img.get_rect(center=(sx, sy))
+
+        rect = img.get_rect(center=(vx, vy))
+        # Corrupted silhouette flicker
+        if self.t % 12 < 4:
+            ghost = img.copy()
+            ghost.fill((180, 0, 40, 90), special_flags=pygame.BLEND_RGBA_MULT)
+
+            surf.blit(ghost, rect.move(-3, 0))
+            surf.blit(ghost, rect.move(3, 0))
         surf.blit(img, rect)
 
         if d < 150:
-            draw_text(surf, "FAILED EXPERIMENT", font_tiny, BLOOD_RED, sx, sy - 52)
+            draw_text(surf, "FAILED EXPERIMENT", font_tiny, BLOOD_RED, vx, vy - 52)
 
     def _draw_player(self, surf):
-        sx, sy = self._world_to_screen(self.px, self.py)
+        vx, vy = self._world_to_view(self.px, self.py)
+
         if self.immune_timer <= 0 or self.immune_timer % 8 < 4:
-            draw_astronaut(surf, sx, sy, self.player_frame, self.facing)
+            draw_astronaut(surf, vx, vy, self.player_frame, self.facing)
 
     def _draw_horror_lighting(self, surf):
-        # Vignette
-        vignette = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-        for r in range(520, 120, -40):
-            alpha = int((520 - r) * 0.20)
-            pygame.draw.circle(vignette, (0, 0, 0, alpha), (SCREEN_W // 2, SCREEN_H // 2), r, 18)
-        surf.blit(vignette, (0, 0))
+        # Full darkness layer
+        darkness = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        darkness.fill((0, 0, 0, 195))
 
+        # Player screen position
+        psx, psy = self._world_to_screen(self.px, self.py)
+
+        # Visible radius around player
+        light_radius = 145
+
+        # Create rough circular visibility by cutting lighter circles into darkness
+        # This is still soft, but not those ugly huge rings.
+        for radius, alpha in [
+            (light_radius, 0),
+            (light_radius + 35, 65),
+            (light_radius + 70, 125),
+        ]:
+            pygame.draw.circle(
+                darkness,
+                (0, 0, 0, alpha),
+                (psx, psy),
+                radius
+            )
+
+        surf.blit(darkness, (0, 0))
+
+        # Monster proximity warning
         d = math.hypot(self.px - self.ex, self.py - self.ey)
-        if d < 190:
-            alpha = int(clamp((190 - d) / 190 * 125, 0, 125))
-            overlay = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            overlay.fill((130, 0, 0, alpha))
-            surf.blit(overlay, (0, 0))
+
+        if d < 210:
+            alpha = int(clamp((210 - d) / 210 * 120, 0, 120))
+            danger = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+            danger.fill((130, 0, 0, alpha))
+            surf.blit(danger, (0, 0))
+
             pulse = int(210 + 45 * math.sin(self.t * 0.22))
-            draw_text(surf, "FE SIGNAL CLOSE", font_med, (pulse, 35, 35), SCREEN_W // 2, SCREEN_H - 80)
+            draw_text(
+                surf,
+                "FE SIGNAL CLOSE",
+                font_med,
+                (pulse, 35, 35),
+                SCREEN_W // 2,
+                SCREEN_H - 80
+            )
+
+        # Screen static/noise flicker
+        if self.t % 9 == 0:
+            static = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+
+            for _ in range(90):
+                x = random.randint(0, SCREEN_W - 1)
+                y = random.randint(self.HUD_H, SCREEN_H - 1)
+                shade = random.randint(80, 160)
+                static.set_at((x, y), (shade, shade, shade, 35))
+
+            surf.blit(static, (0, 0))
+
+        # Emergency flicker
+        if self.t % 120 < 8:
+            flicker = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+            flicker.fill((255, 0, 0, 30))
+            surf.blit(flicker, (0, 0))
 
     def _draw_hud(self, surf):
-        hud = pygame.Surface((SCREEN_W, self.HUD_H), pygame.SRCALPHA)
-        hud.fill((5, 8, 18, 238))
-        surf.blit(hud, (0, 0))
-        pygame.draw.line(surf, (85, 105, 135), (0, self.HUD_H), (SCREEN_W, self.HUD_H), 2)
+        hud_h = self.HUD_H
+        room = _room_at_world(self.px, self.py)
 
         repaired = self._repaired_count()
         total = len(self.tasks)
-        room = _room_at_world(self.px, self.py)
 
-        pygame.draw.rect(surf, (14, 20, 36), (12, 9, 205, 38), border_radius=8)
-        pygame.draw.rect(surf, (80, 105, 135), (12, 9, 205, 38), 1, border_radius=8)
-        draw_text_left(surf, "LEVEL 2", font_tiny, (125, 145, 170), 24, 15)
-        draw_text_left(surf, "REPAIR THE SHIP", font_small, MOON_GREY, 24, 30)
+        d = math.hypot(self.px - self.ex, self.py - self.ey)
+        danger_near = d < 210
 
-        draw_text(surf, f"{room['name']} // SYSTEM FAILURE", font_small, (185, 200, 215), SCREEN_W // 2, 17)
+        # Palette
+        BG = (3, 4, 8)
+        LINE = (90, 18, 14)
+        RED = (235, 55, 35)
+        RED_DIM = (120, 28, 22)
+        ORANGE = (255, 125, 20)
+        GREEN = (0, 235, 80)
+        GREEN_DIM = (0, 110, 45)
+        DIM = (110, 55, 45)
 
-        pygame.draw.rect(surf, (30, 24, 10), (SCREEN_W // 2 - 85, 31, 170, 17), border_radius=6)
-        pygame.draw.rect(surf, GOLD, (SCREEN_W // 2 - 85, 31, 170, 17), 1, border_radius=6)
-        draw_text(surf, f"REPAIRS {repaired}/{total}", font_tiny, GOLD, SCREEN_W // 2, 39)
+        # Background
+        pygame.draw.rect(surf, BG, (0, 0, SCREEN_W, hud_h))
+        pygame.draw.line(surf, LINE, (0, hud_h - 1), (SCREEN_W, hud_h - 1), 1)
 
-        draw_hp_bar(surf, SCREEN_W - 190, 15, 165, 20, self.player_hp, self.player_max, "SUIT")
-        draw_text(surf, "WASD MOVE  |  HOLD E REPAIR", font_tiny, (90, 110, 135), SCREEN_W - 110, 43)
-        self._draw_repair_pips(surf)
+        # Subtle scanlines
+        for y in range(2, hud_h, 5):
+            pygame.draw.line(surf, (16, 4, 4), (0, y), (SCREEN_W, y), 1)
 
-    def _draw_repair_pips(self, surf):
-        start_x = 238
-        y = 25
-        size = 9
-        for i, task in enumerate(self.tasks):
-            x = start_x + i * 18
-            col = task["col"] if task["done"] else (45, 50, 65)
-            pygame.draw.rect(surf, col, (x, y, size, size), border_radius=2)
-            pygame.draw.rect(surf, (120, 130, 150), (x, y, size, size), 1, border_radius=2)
+        # Layout
+        margin = 16
+        left_w = 150
+        right_w = 170
+
+        left_x = margin
+        center_x = SCREEN_W // 2
+        right_x = SCREEN_W - right_w - margin
+
+        # Vertical separators
+        pygame.draw.line(surf, LINE, (left_w + 25, 6), (left_w + 25, hud_h - 12), 1)
+        pygame.draw.line(surf, LINE, (right_x - 18, 6), (right_x - 18, hud_h - 12), 1)
+
+        # LEFT: mission
+# LEFT: mission
+        draw_text_left(surf, "MISSION", font_tiny, DIM, left_x, 12)
+        draw_text_left(surf, "REPAIR SHIP", font_small, RED, left_x, 30)
+
+        # CENTER: room only
+        room_col = RED if danger_near and self.t % 30 < 16 else ORANGE
+
+        draw_text(
+            surf,
+            room["name"].upper(),
+            font_small,
+            room_col,
+            center_x,
+            17
+        )
+
+        draw_text(
+            surf,
+            "SYSTEM FAILURE",
+            font_tiny,
+            RED_DIM,
+            center_x,
+            35
+        )
+
+        # RIGHT: suit
+        draw_text_left(surf, "SUIT", font_tiny, GREEN_DIM, right_x, 10)
+
+        draw_text(
+            surf,
+            f"{self.player_hp}/{self.player_max}",
+            font_small,
+            GREEN if not danger_near else RED,
+            right_x + 105,
+            26
+        )
+
+        # HP mini bar
+        hp_bar_x = right_x
+        hp_bar_y = 34
+        hp_bar_w = 90
+        hp_bar_h = 7
+
+        pygame.draw.rect(surf, (5, 20, 8), (hp_bar_x, hp_bar_y, hp_bar_w, hp_bar_h))
+        pygame.draw.rect(surf, GREEN_DIM, (hp_bar_x, hp_bar_y, hp_bar_w, hp_bar_h), 1)
+
+        hp_ratio = self.player_hp / self.player_max
+        hp_fill = int(hp_bar_w * hp_ratio)
+
+        if hp_fill > 0:
+            pygame.draw.rect(
+                surf,
+                GREEN if not danger_near else RED,
+                (hp_bar_x, hp_bar_y, hp_fill, hp_bar_h)
+            )
+
+        # BOTTOM: repair progress strip
+        strip_y = hud_h - 10
+        strip_h = 6
+        strip_x = 0
+        strip_w = SCREEN_W
+
+        pygame.draw.rect(surf, (18, 4, 3), (strip_x, strip_y, strip_w, strip_h))
+
+        fill_w = int(strip_w * repaired / total)
+        if fill_w > 0:
+            pygame.draw.rect(surf, ORANGE, (strip_x, strip_y, fill_w, strip_h))
+
+        # Repair pips on strip
+        pip_w = 34
+        pip_h = 6
+        gap = 6
+        total_pip_w = total * pip_w + (total - 1) * gap
+        pip_start = SCREEN_W // 2 - total_pip_w // 2
+
+        for i in range(total):
+            pip_rect = pygame.Rect(pip_start + i * (pip_w + gap), strip_y, pip_w, pip_h)
+
+            pygame.draw.rect(surf, (35, 8, 5), pip_rect)
+            if i < repaired:
+                pygame.draw.rect(surf, ORANGE, pip_rect)
+
+            pygame.draw.rect(surf, RED_DIM, pip_rect, 1)
+
+        # Tiny repairs label, below center text but above strip
+        draw_text(
+            surf,
+            f"REPAIRS {repaired}/{total}",
+            font_tiny,
+            ORANGE,
+            center_x,
+            hud_h - 20
+        )
+
 
     def _draw_room_overlay(self, surf):
         if self.room_name_timer <= 0:
@@ -618,17 +1070,48 @@ class Level2:
     def _draw_task_prompt(self, surf):
         if self.active_task is None:
             return
+
         task = self.active_task
-        panel = pygame.Surface((SCREEN_W, 76), pygame.SRCALPHA)
-        panel.fill((5, 8, 18, 220))
-        surf.blit(panel, (0, SCREEN_H - 76))
-        pygame.draw.line(surf, task["col"], (0, SCREEN_H - 76), (SCREEN_W, SCREEN_H - 76), 2)
-        draw_text(surf, f"HOLD [E] TO REPAIR: {task['name']}", font_small, task["col"], SCREEN_W // 2, SCREEN_H - 56)
-        draw_text(surf, task["desc"], font_tiny, (180, 190, 205), SCREEN_W // 2, SCREEN_H - 37)
+
+        panel_h = 72
+        panel_y = SCREEN_H - panel_h
+
+        pygame.draw.rect(surf, (3, 6, 12), (0, panel_y, SCREEN_W, panel_h))
+        pygame.draw.line(surf, task["col"], (0, panel_y), (SCREEN_W, panel_y), 2)
+
+        for y in range(panel_y + 2, SCREEN_H, 4):
+            pygame.draw.line(surf, (15, 15, 15), (0, y), (SCREEN_W, y), 1)
+
+        draw_text(
+            surf,
+            f"HOLD [E] TO REPAIR: {task['name']}",
+            font_med,
+            task["col"],
+            SCREEN_W // 2,
+            panel_y + 18
+        )
+
+        draw_text(
+            surf,
+            task["desc"].upper(),
+            font_small,
+            (160, 160, 160),
+            SCREEN_W // 2,
+            panel_y + 38
+        )
+
         bar_w = 320
-        pygame.draw.rect(surf, (18, 20, 28), (SCREEN_W // 2 - bar_w // 2, SCREEN_H - 22, bar_w, 10), border_radius=5)
-        pygame.draw.rect(surf, task["col"], (SCREEN_W // 2 - bar_w // 2, SCREEN_H - 22, int(bar_w * task["progress"] / 100), 10), border_radius=5)
-        pygame.draw.rect(surf, (120, 130, 150), (SCREEN_W // 2 - bar_w // 2, SCREEN_H - 22, bar_w, 10), 1, border_radius=5)
+        bar_h = 10
+        bx = SCREEN_W // 2 - bar_w // 2
+        by = panel_y + 52
+
+        pygame.draw.rect(surf, (12, 8, 8), (bx, by, bar_w, bar_h))
+        pygame.draw.rect(surf, (100, 20, 20), (bx, by, bar_w, bar_h), 1)
+
+        fill = int(bar_w * task["progress"] / 100)
+
+        if fill > 0:
+            pygame.draw.rect(surf, task["col"], (bx, by, fill, bar_h))
 
     def _draw_flash_message(self, surf):
         if self.flash_timer <= 0:

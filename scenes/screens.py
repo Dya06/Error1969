@@ -506,20 +506,51 @@ class TitleScreen:
             )
 
         # Press space
-        blink = int(self.t * 0.045) % 2 == 0
+        blink = int(self.t * 0.045)
         if blink:
-            draw_text(
+            start_text = "▶ PRESS SPACE TO START ◀"
+
+            # Text position
+            text_x = SCREEN_W // 2
+            text_y = 430
+
+            # Render text first so we can size the panel properly
+            text_surface = font_med.render(start_text, True, (245, 240, 220))
+            text_rect = text_surface.get_rect(center=(text_x, text_y))
+
+            # Background panel behind text
+            panel_rect = text_rect.inflate(44, 24)
+
+            panel = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
+            panel.fill((0, 0, 0, 165))  # dark transparent overlay
+            surf.blit(panel, panel_rect.topleft)
+
+            # Border glow
+            pygame.draw.rect(
                 surf,
-                "▶ PRESS SPACE TO START ◀",
-                font_med,
-                (230, 230, 210),
-                SCREEN_W // 2,
-                430
+                (160, 40, 55),
+                panel_rect,
+                2,
+                border_radius=10
             )
+
+            # Thick shadow / outline effect
+            shadow_colour = (0, 0, 0)
+
+            for ox, oy in [
+                (-3, 0), (3, 0), (0, -3), (0, 3),
+                (-2, -2), (2, -2), (-2, 2), (2, 2)
+            ]:
+                shadow = font_med.render(start_text, True, shadow_colour)
+                shadow_rect = shadow.get_rect(center=(text_x + ox, text_y + oy))
+                surf.blit(shadow, shadow_rect)
+
+            # Main text
+            surf.blit(text_surface, text_rect)
 
         draw_text(
             surf,
-            "GROUP // APD2F2509CSAI",
+            "GROUP 26 // APD2F2509CSAI",
             font_tiny,
             (80, 80, 95),
             SCREEN_W // 2,
@@ -527,8 +558,75 @@ class TitleScreen:
         )
 
 # ─────────────────────────────────────────────
-#  GAME OVER / WIN SCREENS
+#  GAME OVER / WIN SCREENS / DEATH CUT SCENE
 # ─────────────────────────────────────────────
+
+class DeathCutscene:
+    def __init__(self):
+        self.t = 0
+        self.done = False
+
+        self.font_death = pygame.font.Font(None, 54)
+        self.font_small = pygame.font.Font(None, 22)
+
+    def handle_event(self, event):
+        # Optional: allow skipping after the text appears
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                if self.t > 90:
+                    self.done = True
+
+    def update(self):
+        self.t += 1
+
+        # Auto-finish after around 4 seconds
+        if self.t > 240:
+            self.done = True
+
+    def _render_text(self, surf, text, font, colour, x, y, alpha=255):
+        img = font.render(str(text), True, colour)
+        img.set_alpha(alpha)
+        rect = img.get_rect(center=(x, y))
+        surf.blit(img, rect)
+
+    def draw(self, surf):
+        surf.fill((0, 0, 0))
+
+        # Fade text in
+        if self.t < 60:
+            alpha = int(255 * (self.t / 60))
+        elif self.t < 180:
+            alpha = 255
+        else:
+            alpha = int(255 * max(0, 1 - ((self.t - 180) / 60)))
+
+        # Slight unsettling flicker
+        flicker = 0
+        if self.t % 17 < 2:
+            flicker = random.randint(-2, 2)
+
+        self._render_text(
+            surf,
+            "YOUR SUIT IS NOW YOUR COFFIN",
+            self.font_death,
+            (210, 210, 210),
+            SCREEN_W // 2 + flicker,
+            SCREEN_H // 2,
+            alpha
+        )
+
+        # Small hint after a while
+        if self.t > 100 and self.t % 80 < 50:
+            self._render_text(
+                surf,
+                "PRESS SPACE TO CONTINUE",
+                self.font_small,
+                (90, 90, 90),
+                SCREEN_W // 2,
+                SCREEN_H // 2 + 58,
+                min(180, alpha)
+            )
+
 class GameOverScreen:
     def __init__(self, win=False):
         self.win = win
