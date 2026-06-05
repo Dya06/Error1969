@@ -1,97 +1,411 @@
 """Title, dialogue, win/game-over, and transition screens."""
 
 import pygame
+import random
 import math
+
 from settings import *
 from utils import *
+from graphics.sprites import draw_ship
 from core.particles import spawn_particles, update_particles
-from graphics.sprites import *
 
 # ─────────────────────────────────────────────
 #  CUTSCENE / DIALOGUE SYSTEM
 # ─────────────────────────────────────────────
 class TextScene:
-    """Shows scrolling text lines, press SPACE / ENTER to advance."""
-    def __init__(self, lines, bg_colour=DARK_GREY, title="", draw_fn=None):
-        self.lines     = lines
-        self.bg_colour = bg_colour
-        self.title     = title
-        self.draw_fn   = draw_fn   # optional extra drawing
-        self.idx       = 0         # current line
-        self.char_idx  = 0         # typewriter char pos
-        self.timer     = 0
-        self.done      = False
-        self.t         = 0
+
+    def __init__(self, lines, next_state=None, title="MISSION LOG", speaker="APOLLO ARCHIVE"):
+        # Clean old cutscene data so functions like intro_draw do not appear as text
+        cleaned_lines = []
+
+        if isinstance(lines, (list, tuple)):
+            for item in lines:
+                if callable(item):
+                    continue
+                cleaned_lines.append(str(item))
+        else:
+            if callable(lines):
+                cleaned_lines = []
+            else:
+                cleaned_lines = [str(lines)]
+
+        self.lines = cleaned_lines
+
+        # If old code passed a draw/background function as the second argument, ignore it
+        if callable(next_state):
+            self.next_state = None
+        else:
+            self.next_state = next_state
+
+        self.title = str(title) if title is not None and not callable(title) else "MISSION LOG"
+        self.speaker = str(speaker) if speaker is not None and not callable(speaker) else "APOLLO ARCHIVE"
+
+        self.done = False
+        self.t = 0
+
+        self.line_index = 0
+        self.char_index = 0
+        self.type_speed = 2
+        self.pause_timer = 0
+
+        self.full_line_visible = False
+        self.fade_in = 0
+        self.glitch_timer = 0
+        self.glitch_offset = 0
+
+        self.star_seed = random.randint(1000, 9999)
+        self.warning_pulse = 0
+        self.skip_rect = pygame.Rect(SCREEN_W - 125, SCREEN_H - 47, 100, 30)
+
+        # Fonts local to cutscene
+        self.font_title = pygame.font.Font(None, 48)
+        self.font_speaker = pygame.font.Font(None, 24)
+        self.font_body = pygame.font.Font(None, 30)
+        self.font_hint = pygame.font.Font(None, 20)
+        self.font_small = pygame.font.Font(None, 18)
+
+    # ─────────────────────────────────────────────
+    #  INPUT
+    # ─────────────────────────────────────────────
 
     def handle_event(self, event):
-        if event.type == pygame.KEYDOWN and event.key in (
-                pygame.K_SPACE, pygame.K_RETURN, pygame.K_e):
-            if self.done or self.idx >= len(self.lines):
+        # Mouse click skip button
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.skip_rect.collidepoint(event.pos):
                 self.done = True
                 return
-            if self.char_idx < len(self.lines[self.idx]):
-                self.char_idx = len(self.lines[self.idx])
-            else:
-                self.idx += 1
-                self.char_idx = 0
-                if self.idx >= len(self.lines):
-                    self.done = True
+
+        if event.type != pygame.KEYDOWN:
+            return
+
+        # SPACE / ENTER = continue dialogue
+        if event.key in (pygame.K_SPACE, pygame.K_RETURN):
+            current_line = self._current_line()
+
+            if not self.full_line_visible:
+                self.char_index = len(current_line)
+                self.full_line_visible = True
+                return
+
+            self._next_line()
+
+        # S = skip cutscene
+        elif event.key == pygame.K_s:
+            self.done = True
+
+    # ─────────────────────────────────────────────
+    #  UPDATE
+    # ─────────────────────────────────────────────
 
     def update(self):
         self.t += 1
-        if self.done or self.idx >= len(self.lines):
-            self.done = True
+        self.fade_in = min(255, self.fade_in + 7)
+
+        # Random glitch hit
+        if random.random() < 0.035:
+            self.glitch_timer = random.randint(3, 8)
+            self.glitch_offset = random.randint(-5, 5)
+
+        if self.glitch_timer > 0:
+            self.glitch_timer -= 1
+        else:
+            self.glitch_offset = 0
+
+        if self.pause_timer > 0:
+            self.pause_timer -= 1
             return
-        if self.char_idx < len(self.lines[self.idx]):
-            self.char_idx += 2   # typewriter speed
+
+        current_line = self._current_line()
+
+        if not self.full_line_visible:
+            if self.t % self.type_speed == 0:
+                self.char_index += 1
+
+            if self.char_index >= len(current_line):
+                self.char_index = len(current_line)
+                self.full_line_visible = True
+                self.pause_timer = 10
+
+    # ─────────────────────────────────────────────
+    #  HELPERS
+    # ─────────────────────────────────────────────
+
+    def _current_line(self):
+        if not self.lines:
+            return ""
+
+        while self.line_index < len(self.lines):
+            line = self.lines[self.line_index]
+
+            if callable(line):
+                self.line_index += 1
+                continue
+
+            return str(line)
+
+        return ""
+
+    def _next_line(self):
+        self.line_index += 1
+        self.char_index = 0
+        self.full_line_visible = False
+        self.pause_timer = 6
+
+        if self.line_index >= len(self.lines):
+            self.done = True
+
+    def _wrap_text(self, text, font, max_width):
+        text = str(text)
+        words = text.split(" ")
+        lines = []
+        current = ""
+
+        for word in words:
+            test = word if current == "" else current + " " + word
+
+            if font.size(test)[0] <= max_width:
+                current = test
+            else:
+                if current:
+                    lines.append(current)
+                current = word
+
+        if current:
+            lines.append(current)
+
+        return lines
+
+    def _render_text(self, surf, text, font, colour, x, y, alpha=255, center=False):
+        text = str(text)  # prevents pygame text crash
+
+        img = font.render(text, True, colour)
+        img.set_alpha(alpha)
+        rect = img.get_rect()
+
+        if center:
+            rect.center = (x, y)
+        else:
+            rect.topleft = (x, y)
+
+        surf.blit(img, rect)
+
+    # ─────────────────────────────────────────────
+    #  DRAW
+    # ─────────────────────────────────────────────
 
     def draw(self, surf):
-        surf.fill(self.bg_colour)
-        draw_stars(surf, self.t / 60)
-        if self.draw_fn:
-            self.draw_fn(surf, self.t)
+        self._draw_background(surf)
+        self._draw_scanlines(surf)
+        self._draw_main_panel(surf)
+        self._draw_header(surf)
+        self._draw_story_text(surf)
+        self._draw_footer_prompt(surf)
 
-        if self.title:
-            draw_text(surf, self.title, font_large, GOLD, SCREEN_W // 2, 60)
+    # Removed full-screen glitch overlay.
+    # Title glitch remains inside _draw_header().
+    
+        self._draw_fade(surf)
 
-        if self.done or self.idx >= len(self.lines):
+    def _draw_background(self, surf):
+        # Deep space background
+        surf.fill((1, 2, 10))
+
+        rng = random.Random(self.star_seed)
+
+        for i in range(160):
+            x = rng.randint(0, SCREEN_W)
+            y = rng.randint(0, SCREEN_H)
+            size = rng.choice([1, 1, 1, 2])
+            pulse = 40 + int(35 * math.sin(self.t * 0.02 + i))
+            shade = rng.randint(90, 180) + pulse
+            shade = max(60, min(230, shade))
+            pygame.draw.circle(surf, (shade, shade, shade), (x, y), size)
+
+        # Slow moving red nebula glow
+        glow = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        gx = SCREEN_W // 2 + int(80 * math.sin(self.t * 0.006))
+        gy = SCREEN_H // 2 + int(50 * math.cos(self.t * 0.004))
+        pygame.draw.circle(glow, (110, 0, 30, 45), (gx, gy), 260)
+        pygame.draw.circle(glow, (50, 0, 100, 25), (SCREEN_W - gx, gy + 80), 220)
+        surf.blit(glow, (0, 0))
+
+        # Horror vignette
+        vignette = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        for r in range(500, 120, -40):
+            alpha = int((500 - r) * 0.26)
+            pygame.draw.circle(vignette, (0, 0, 0, alpha), (SCREEN_W // 2, SCREEN_H // 2), r, 22)
+        surf.blit(vignette, (0, 0))
+
+    def _draw_scanlines(self, surf):
+        # Old monitor / archive feed effect
+        scan = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+
+        for y in range(0, SCREEN_H, 4):
+            pygame.draw.line(scan, (255, 255, 255, 10), (0, y), (SCREEN_W, y))
+
+        # Occasional red corrupted line
+        if self.glitch_timer > 0:
+            for _ in range(5):
+                y = random.randint(0, SCREEN_H)
+                pygame.draw.rect(scan, (180, 0, 40, 35), (0, y, SCREEN_W, random.randint(2, 5)))
+
+        surf.blit(scan, (0, 0))
+
+    def _draw_main_panel(self, surf):
+        # Main glass panel
+        panel = pygame.Surface((SCREEN_W - 120, 330), pygame.SRCALPHA)
+        panel.fill((5, 10, 22, 220))
+
+        px = 60
+        py = 165
+
+        surf.blit(panel, (px, py))
+
+        pygame.draw.rect(surf, (75, 95, 130), (px, py, SCREEN_W - 120, 330), 2, border_radius=8)
+        pygame.draw.rect(surf, (20, 30, 48), (px + 8, py + 8, SCREEN_W - 136, 314), 1, border_radius=6)
+
+        # Left red warning strip
+        strip_col = (150, 20, 35) if self.t % 40 < 25 else (80, 10, 20)
+        pygame.draw.rect(surf, strip_col, (px, py, 6, 330), border_radius=3)
+
+        # Tiny corner screws
+        for sx, sy in [
+            (px + 16, py + 16),
+            (px + SCREEN_W - 136, py + 16),
+            (px + 16, py + 314),
+            (px + SCREEN_W - 136, py + 314),
+        ]:
+            pygame.draw.circle(surf, (90, 105, 130), (sx, sy), 3)
+
+    def _draw_header(self, surf):
+        # Top archive bar
+        pygame.draw.rect(surf, (4, 8, 18), (0, 0, SCREEN_W, 82))
+        pygame.draw.line(surf, (70, 90, 120), (0, 82), (SCREEN_W, 82), 2)
+
+        # Glitched title layers
+        title = self.title
+        tx = SCREEN_W // 2 + self.glitch_offset
+
+        if self.glitch_timer > 0:
+            self._render_text(surf, title, self.font_title, (220, 0, 60), tx - 4, 36, 160, center=True)
+            self._render_text(surf, title, self.font_title, (0, 210, 255), tx + 4, 36, 160, center=True)
+
+        self._render_text(surf, title, self.font_title, (230, 235, 230), tx, 36, 255, center=True)
+
+        # Archive metadata
+        left = "ERROR 1969 // BLACKBOX PLAYBACK"
+        right = f"LOG {self.line_index + 1:02d}/{max(1, len(self.lines)):02d}"
+
+        self._render_text(surf, left, self.font_small, (95, 120, 145), 18, 58)
+        self._render_text(surf, right, self.font_small, (95, 120, 145), SCREEN_W - 150, 58)
+
+    def _draw_story_text(self, surf):
+        current_line = self._current_line()
+        visible_text = current_line[:self.char_index]
+
+        x = 105
+        y = 220
+        max_width = SCREEN_W - 210
+
+        # Speaker tag
+        tag_rect = pygame.Rect(x, y - 38, 245, 28)
+        pygame.draw.rect(surf, (20, 28, 45), tag_rect, border_radius=6)
+        pygame.draw.rect(surf, (90, 115, 145), tag_rect, 1, border_radius=6)
+        self._render_text(surf, self.speaker, self.font_speaker, (180, 200, 215), x + 12, y - 32)
+
+        # Small warning icon / red blinking square
+        if self.t % 50 < 30:
+            pygame.draw.rect(surf, (180, 30, 45), (x + 222, y - 30, 9, 9))
+
+        wrapped = self._wrap_text(visible_text, self.font_body, max_width)
+
+        line_y = y + 18
+        for line in wrapped:
+            # soft shadow
+            self._render_text(surf, line, self.font_body, (0, 0, 0), x + 2, line_y + 2, 180)
+            self._render_text(surf, line, self.font_body, (225, 230, 220), x, line_y, 255)
+            line_y += 38
+
+        # Typewriter cursor
+        if not self.full_line_visible or self.t % 40 < 20:
+            cursor_x = x + self.font_body.size(wrapped[-1] if wrapped else "")[0] + 4
+            cursor_y = line_y - 32
+            pygame.draw.rect(surf, (220, 40, 60), (cursor_x, cursor_y, 10, 24))
+
+    def _draw_footer_prompt(self, surf):
+        # Bottom controls panel
+        pygame.draw.rect(surf, (4, 8, 18), (0, SCREEN_H - 58, SCREEN_W, 58))
+        pygame.draw.line(surf, (70, 90, 120), (0, SCREEN_H - 58), (SCREEN_W, SCREEN_H - 58), 2)
+
+        if self.full_line_visible:
+            if self.t % 60 < 40:
+                prompt = "PRESS SPACE TO CONTINUE"
+                colour = (220, 220, 180)
+            else:
+                prompt = ""
+                colour = (220, 220, 180)
+        else:
+            prompt = "TRANSMISSION DECODING..."
+            colour = (100, 140, 160)
+
+        self._render_text(surf, prompt, self.font_hint, colour, SCREEN_W // 2, SCREEN_H - 30, 255, center=True)
+        self._render_text(surf, "ARCHIVE SIGNAL UNSTABLE", self.font_small, (85, 95, 115), 18, SCREEN_H - 32)
+
+        # Skip button
+        mouse_pos = pygame.mouse.get_pos()
+        hover = self.skip_rect.collidepoint(mouse_pos)
+
+        btn_col = (45, 15, 25) if not hover else (85, 25, 40)
+        border_col = (140, 45, 65) if not hover else (220, 70, 90)
+        text_col = (170, 110, 120) if not hover else (255, 190, 200)
+
+        pygame.draw.rect(surf, btn_col, self.skip_rect, border_radius=8)
+        pygame.draw.rect(surf, border_col, self.skip_rect, 1, border_radius=8)
+
+        self._render_text(
+            surf,
+            "SKIP",
+            self.font_hint,
+            text_col,
+            self.skip_rect.centerx,
+            self.skip_rect.centery + 1,
+            255,
+            center=True
+        )
+
+    def _draw_glitch_overlay(self, surf):
+        if self.glitch_timer <= 0:
             return
 
-        # Text box
-        box_y = SCREEN_H // 2 - 60
-        pygame.draw.rect(surf, (5, 5, 15, 220),
-                         (60, box_y, SCREEN_W - 120, 160))
-        pygame.draw.rect(surf, MOON_GREY,
-                         (60, box_y, SCREEN_W - 120, 160), 2)
+        # Horizontal glitch bars
+        for _ in range(6):
+            y = random.randint(90, SCREEN_H - 90)
+            h = random.randint(2, 8)
+            x = random.randint(-30, 80)
+            w = random.randint(200, SCREEN_W)
+            col = random.choice([
+                (180, 0, 50, 45),
+                (0, 180, 220, 35),
+                (255, 255, 255, 25),
+            ])
+            pygame.draw.rect(surf, col, (x, y, w, h))
 
-        # Current line (typewriter)
-        line  = self.lines[self.idx]
-        shown = line[:self.char_idx]
-        # Word-wrap at ~60 chars
-        words   = shown.split(" ")
-        rows    = []
-        cur_row = ""
-        for w in words:
-            if len(cur_row) + len(w) + 1 <= 58:
-                cur_row += ("" if cur_row == "" else " ") + w
-            else:
-                rows.append(cur_row)
-                cur_row = w
-        if cur_row:
-            rows.append(cur_row)
-        for i, row in enumerate(rows[-4:]):
-            draw_text_left(surf, row, font_small, WHITE, 80, box_y + 16 + i * 28)
+        # Corrupted text fragments
+        fragments = ["SIGNAL LOST", "DO NOT LOOK", "LUNAR ENTITY", "DATA CORRUPTED", "1969"]
+        for _ in range(2):
+            frag = random.choice(fragments)
+            x = random.randint(40, SCREEN_W - 180)
+            y = random.randint(95, SCREEN_H - 100)
+            self._render_text(surf, frag, self.font_small, (180, 30, 45), x, y, 90)
 
-        # Prompt
-        if self.char_idx >= len(line):
-            blink = int(self.t * 0.1) % 2 == 0
-            if blink:
-                draw_text(surf, "▶ PRESS SPACE TO CONTINUE", font_tiny,
-                          LIGHT_GREY, SCREEN_W // 2, box_y + 140)
+    def _draw_fade(self, surf):
+        if self.fade_in >= 255:
+            return
 
-        # Progress indicator
-        draw_text(surf, f"[{self.idx + 1}/{len(self.lines)}]", font_tiny,
-                  (80, 80, 100), SCREEN_W - 100, box_y + 150)
+        fade = pygame.Surface((SCREEN_W, SCREEN_H))
+        fade.fill(BLACK)
+        fade.set_alpha(255 - self.fade_in)
+        surf.blit(fade, (0, 0))
 
 # ─────────────────────────────────────────────
 #  TITLE SCREEN
@@ -217,53 +531,284 @@ class TitleScreen:
 # ─────────────────────────────────────────────
 class GameOverScreen:
     def __init__(self, win=False):
-        self.win  = win
-        self.t    = 0
+        self.win = win
+        self.t = 0
         self.done = False
 
+        # Used by game.py to know what the player selected
+        self.choice = None  # "retry" or "menu"
+
+        self.glitch_timer = 0
+        self.fade_in = 0
+
+        self.font_big = pygame.font.Font(None, 86)
+        self.font_title2 = pygame.font.Font(None, 52)
+        self.font_med2 = pygame.font.Font(None, 32)
+        self.font_small2 = pygame.font.Font(None, 22)
+        self.font_tiny2 = pygame.font.Font(None, 16)
+
     def handle_event(self, event):
-        if event.type == pygame.KEYDOWN and event.key in (
-                pygame.K_SPACE, pygame.K_RETURN, pygame.K_r):
+        if event.type != pygame.KEYDOWN:
+            return
+
+        # Retry
+        if event.key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_r):
+            self.choice = "retry"
+            self.done = True
+
+        # Back to menu
+        elif event.key == pygame.K_m:
+            self.choice = "menu"
             self.done = True
 
     def update(self):
         self.t += 1
+        self.fade_in = min(255, self.fade_in + 5)
+
+        if random.random() < 0.04:
+            self.glitch_timer = random.randint(3, 8)
+
+        if self.glitch_timer > 0:
+            self.glitch_timer -= 1
+
+    def _render_text(self, surf, text, font, colour, x, y, alpha=255, center=True):
+        img = font.render(str(text), True, colour)
+        img.set_alpha(alpha)
+        rect = img.get_rect()
+
+        if center:
+            rect.center = (x, y)
+        else:
+            rect.topleft = (x, y)
+
+        surf.blit(img, rect)
 
     def draw(self, surf):
-        surf.fill(DARK_GREY)
+        if self.win:
+            self._draw_win_screen(surf)
+        else:
+            self._draw_lose_screen(surf)
+
+        self._draw_fade(surf)
+
+    def _draw_lose_screen(self, surf):
+        # Background
+        surf.fill((2, 2, 8))
+
+        # Dead-space stars
+        rng = random.Random(1969)
+        for i in range(130):
+            x = rng.randint(0, SCREEN_W)
+            y = rng.randint(0, SCREEN_H)
+            flicker = int(40 + 30 * math.sin(self.t * 0.03 + i))
+            shade = clamp(rng.randint(45, 120) + flicker, 25, 160)
+            pygame.draw.circle(surf, (shade, shade, shade), (x, y), rng.choice([1, 1, 2]))
+
+        # Gloomy red/purple glow
+        glow = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        pygame.draw.circle(glow, (110, 0, 25, 55), (SCREEN_W // 2, SCREEN_H // 2), 280)
+        pygame.draw.circle(glow, (55, 0, 90, 38), (SCREEN_W // 2, SCREEN_H // 2 + 80), 220)
+        surf.blit(glow, (0, 0))
+
+        # Dark vignette
+        vignette = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        for r in range(560, 120, -40):
+            alpha = int((560 - r) * 0.30)
+            pygame.draw.circle(vignette, (0, 0, 0, alpha), (SCREEN_W // 2, SCREEN_H // 2), r, 24)
+        surf.blit(vignette, (0, 0))
+
+        # Huge faded eye/signal shape in background
+        eye_alpha = 70 + int(20 * math.sin(self.t * 0.04))
+        eye = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        pygame.draw.ellipse(
+            eye,
+            (100, 0, 30, eye_alpha),
+            (SCREEN_W // 2 - 190, 115, 380, 150),
+            3
+        )
+        pygame.draw.circle(eye, (35, 0, 10, eye_alpha), (SCREEN_W // 2, 190), 42)
+        pygame.draw.circle(eye, (160, 20, 40, eye_alpha), (SCREEN_W // 2, 190), 18)
+        surf.blit(eye, (0, 0))
+
+        # Main panel
+        panel = pygame.Surface((SCREEN_W - 130, 310), pygame.SRCALPHA)
+        panel.fill((5, 8, 18, 220))
+        px = 65
+        py = 180
+        surf.blit(panel, (px, py))
+
+        pygame.draw.rect(surf, (80, 40, 55), (px, py, SCREEN_W - 130, 310), 2, border_radius=10)
+        pygame.draw.rect(surf, (25, 15, 25), (px + 8, py + 8, SCREEN_W - 146, 294), 1, border_radius=8)
+
+        # Glitch title only, not full-screen chaos
+        title_x = SCREEN_W // 2
+        title_y = 145
+
+        if self.glitch_timer > 0:
+            self._render_text(surf, "SIGNAL LOST", self.font_big, (255, 0, 60), title_x - 5, title_y, 150)
+            self._render_text(surf, "SIGNAL LOST", self.font_big, (0, 210, 255), title_x + 5, title_y, 130)
+
+        pulse = int(190 + 45 * math.sin(self.t * 0.06))
+        self._render_text(surf, "SIGNAL LOST", self.font_big, (pulse, 25, 35), title_x, title_y)
+
+        # Horror message
+        self._render_text(
+            surf,
+            "YOUR SUIT STOPPED RESPONDING",
+            self.font_med2,
+            (210, 210, 210),
+            SCREEN_W // 2,
+            235
+        )
+
+        self._render_text(
+            surf,
+            "The archive recovered only fragments of your final transmission.",
+            self.font_small2,
+            (135, 145, 160),
+            SCREEN_W // 2,
+            278
+        )
+
+        # Broken transmission lines
+        broken_lines = [
+            "OXYGEN STATUS  : UNKNOWN",
+            "HEARTBEAT      : LOST",
+            "ENTITY SIGNAL  : STILL NEAR",
+            "MISSION RESULT : FAILED"
+        ]
+
+        start_y = 325
+        for i, line in enumerate(broken_lines):
+            col = (120, 135, 150)
+            if i == 2 and self.t % 60 < 35:
+                col = (190, 40, 60)
+
+            self._render_text(
+                surf,
+                line,
+                self.font_small2,
+                col,
+                SCREEN_W // 2,
+                start_y + i * 28
+            )
+
+        # Bottom action buttons
+        self._draw_action_buttons(surf)
+
+        # Scanlines
+        scan = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        for y in range(0, SCREEN_H, 4):
+            pygame.draw.line(scan, (255, 255, 255, 8), (0, y), (SCREEN_W, y))
+        surf.blit(scan, (0, 0))
+
+    def _draw_action_buttons(self, surf):
+        blink = self.t % 70 < 50
+
+        # Retry button
+        retry_rect = pygame.Rect(SCREEN_W // 2 - 230, 515, 205, 42)
+        menu_rect = pygame.Rect(SCREEN_W // 2 + 25, 515, 205, 42)
+
+        pygame.draw.rect(surf, (35, 12, 18), retry_rect, border_radius=9)
+        pygame.draw.rect(surf, (165, 50, 65), retry_rect, 2, border_radius=9)
+
+        pygame.draw.rect(surf, (12, 18, 32), menu_rect, border_radius=9)
+        pygame.draw.rect(surf, (75, 100, 135), menu_rect, 2, border_radius=9)
+
+        if blink:
+            self._render_text(
+                surf,
+                "SPACE TO RETRY",
+                self.font_small2,
+                (255, 210, 210),
+                retry_rect.centerx,
+                retry_rect.centery
+            )
+
+            self._render_text(
+                surf,
+                "M FOR MAIN MENU",
+                self.font_small2,
+                (205, 220, 240),
+                menu_rect.centerx,
+                menu_rect.centery
+            )
+
+        self._render_text(
+            surf,
+            "ERROR 1969 // BLACKBOX TERMINATED",
+            self.font_tiny2,
+            (85, 90, 105),
+            SCREEN_W // 2,
+            SCREEN_H - 18
+        )
+
+    def _draw_win_screen(self, surf):
+        surf.fill((3, 6, 14))
         draw_stars(surf, self.t / 60)
 
-        if self.win:
-            # Flying ship
-            ship_x = int(SCREEN_W * 0.1 + (SCREEN_W * 0.8) * min(1, self.t / 200))
-            ship_y = int(SCREEN_H // 2 - self.t * 0.5)
-            draw_ship(surf, ship_x, clamp(ship_y, 50, SCREEN_H - 50),
-                      self.t, False)
-            spawn_particles(ship_x, clamp(ship_y + 12, 50, SCREEN_H - 50),
-                            ORANGE, 2, 1.5, 20, 3)
-            update_particles(surf)
+        ship_x = int(SCREEN_W * 0.1 + (SCREEN_W * 0.8) * min(1, self.t / 200))
+        ship_y = int(SCREEN_H // 2 - self.t * 0.5)
 
-            glow = int(200 + 55 * math.sin(self.t * 0.05))
-            draw_text(surf, "MISSION COMPLETE!", font_title, (glow, glow, 80),
-                      SCREEN_W // 2, 180)
-            draw_text(surf, "YOU MADE IT HOME!", font_large, GOLD,
-                      SCREEN_W // 2, 250)
-            draw_text(surf, "PEW PEW — THE MOON EATER IS DEFEATED!", font_med, CYAN,
-                      SCREEN_W // 2, 310)
-            draw_text(surf, "APOLLO ERROR 1969 — MISSION SUCCESS", font_small, MOON_GREY,
-                      SCREEN_W // 2, 360)
-        else:
-            draw_text(surf, "GAME OVER", font_huge, BLOOD_RED,
-                      SCREEN_W // 2, 200)
-            draw_text(surf, "THE MOON HAS CLAIMED YOU...", font_large, MOON_GREY,
-                      SCREEN_W // 2, 290)
-            draw_text(surf, "STRANDED ON THE LUNAR SURFACE", font_med, (150, 150, 170),
-                      SCREEN_W // 2, 340)
+        draw_ship(
+            surf,
+            ship_x,
+            clamp(ship_y, 50, SCREEN_H - 50),
+            self.t,
+            False
+        )
 
-        blink = int(self.t * 0.04) % 2 == 0
-        if blink:
-            draw_text(surf, "PRESS SPACE TO RETURN TO TITLE", font_med,
-                      WHITE, SCREEN_W // 2, 440)
+        spawn_particles(
+            ship_x,
+            clamp(ship_y + 12, 50, SCREEN_H - 50),
+            ORANGE,
+            2,
+            1.5,
+            20,
+            3
+        )
+
+        update_particles(surf)
+
+        glow = int(200 + 55 * math.sin(self.t * 0.05))
+
+        self._render_text(
+            surf,
+            "MISSION COMPLETE",
+            self.font_big,
+            (glow, glow, 90),
+            SCREEN_W // 2,
+            180
+        )
+
+        self._render_text(
+            surf,
+            "YOU MADE IT HOME",
+            self.font_title2,
+            GOLD,
+            SCREEN_W // 2,
+            260
+        )
+
+        self._render_text(
+            surf,
+            "The moon is quiet again. For now.",
+            self.font_med2,
+            CYAN,
+            SCREEN_W // 2,
+            320
+        )
+
+        self._draw_action_buttons(surf)
+
+    def _draw_fade(self, surf):
+        if self.fade_in >= 255:
+            return
+
+        fade = pygame.Surface((SCREEN_W, SCREEN_H))
+        fade.fill(BLACK)
+        fade.set_alpha(255 - self.fade_in)
+        surf.blit(fade, (0, 0))
 
 # ─────────────────────────────────────────────
 #  TRANSITION OVERLAY

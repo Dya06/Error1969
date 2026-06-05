@@ -1,6 +1,8 @@
 """Global settings, colours, and fonts for ERROR 1969."""
 
 import pygame
+pygame.init()
+pygame.font.init()
 
 SCREEN_W, SCREEN_H = 800, 600
 FPS = 60

@@ -99,6 +99,7 @@ WIN_LINES = [
 def main():
     state       = STATE_TITLE
     scene       = TitleScreen()
+    last_level_state = STATE_LEVEL1
     next_state  = None
     transition  = None
 
@@ -170,6 +171,7 @@ def main():
             elif state == STATE_INTRO and scene.done:
                 go_to(STATE_CUTSCENE1)
             elif state == STATE_CUTSCENE1 and scene.done:
+                last_level_state = STATE_LEVEL1
                 go_to(STATE_LEVEL1)
             elif state == STATE_LEVEL1:
                 if scene.lose:
@@ -177,6 +179,7 @@ def main():
                 elif scene.done and scene.flash_timer <= 0:
                     go_to(STATE_CUTSCENE2)
             elif state == STATE_CUTSCENE2 and scene.done:
+                last_level_state = STATE_LEVEL2
                 go_to(STATE_LEVEL2)
             elif state == STATE_LEVEL2:
                 if scene.lose:
@@ -184,6 +187,7 @@ def main():
                 elif scene.done:
                     go_to(STATE_CUTSCENE3)
             elif state == STATE_CUTSCENE3 and scene.done:
+                last_level_state = STATE_LEVEL3
                 go_to(STATE_LEVEL3)
             elif state == STATE_LEVEL3:
                 if scene.lose:
@@ -192,9 +196,17 @@ def main():
                     go_to(STATE_WIN_SCENE)
             elif state == STATE_WIN_SCENE and scene.done:
                 go_to(STATE_WIN)
-            elif state in (STATE_WIN, STATE_GAMEOVER) and scene.done:
-                go_to(STATE_TITLE)
+            elif state == STATE_GAMEOVER and scene.done:
+                if getattr(scene, "choice", None) == "retry":
+                    go_to(last_level_state)
+                else:
+                    go_to(STATE_TITLE)
 
+            elif state == STATE_WIN and scene.done:
+                if getattr(scene, "choice", None) == "retry":
+                    go_to(STATE_LEVEL1)
+                else:
+                    go_to(STATE_TITLE)
         pygame.display.flip()
 
     pygame.quit()
