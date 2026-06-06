@@ -347,6 +347,42 @@ class Level1:
         # ── Sounds ────────────────────────────────────
         self._init_sounds()
 
+        # ── Image Assets & Sprites (No hardcoded graphics) ──
+        try:
+            self.world_map_img = pygame.transform.scale(
+                pygame.image.load("assets/images/level1_bg.png").convert(),
+                (3200, 2400)
+            )
+        except Exception as e:
+            print(f"[ERROR] Failed to load level1_bg.png: {e}")
+            self.world_map_img = None
+
+        def load_colorkey_img(path):
+            try:
+                img = pygame.image.load(path).convert_alpha()
+                img.set_colorkey((0, 0, 0))
+                return img
+            except Exception as e:
+                print(f"[WARNING] Failed to load sprite {path}: {e}")
+                return None
+
+        self.watcher_img = load_colorkey_img("assets/images/watcher.png")
+        self.rock_img = load_colorkey_img("assets/images/rock.png")
+        self.crater_img = load_colorkey_img("assets/images/crater.png")
+        self.debris_img = load_colorkey_img("assets/images/debris.png")
+
+        # Load astronaut walking frames from Level 2
+        self.astro_frames = []
+        for i in range(10):
+            path = f"assets/images/monsters/astronaut/ASTRO{i}.png"
+            try:
+                img = pygame.image.load(path).convert_alpha()
+                img = pygame.transform.scale(img, (40, 40))
+                self.astro_frames.append(img)
+            except Exception as e:
+                print(f"[ERROR] Failed to load ASTRO{i}.png: {e}")
+        self.astro_anim_speed = 6
+
     # ─────────────────────────────────────────────
     #  SOUND
     # ─────────────────────────────────────────────
@@ -741,7 +777,16 @@ class Level1:
         if self.watcher_visible:
             self._draw_watcher(surf)
 
-        draw_astronaut(surf, int(self.px), int(self.py), self.player_frame, self.facing)
+        # Draw player astronaut using image frames
+        if self.astro_frames:
+            frame_index = (self.player_frame // self.astro_anim_speed) % len(self.astro_frames)
+            img = self.astro_frames[frame_index]
+            if self.facing == -1:
+                img = pygame.transform.flip(img, True, False)
+            rect = img.get_rect(center=(int(self.px), int(self.py)))
+            surf.blit(img, rect)
+        else:
+            draw_astronaut(surf, int(self.px), int(self.py), self.player_frame, self.facing)
 
         update_particles(surf)
 
@@ -752,47 +797,16 @@ class Level1:
         self._draw_transition_overlay(surf)
 
     def _draw_sector_background(self, surf):
-        info = self.sector_info()
-        theme = info["theme"]
-
-        # Base dark lunar ground
-        base_col = {
-            "plain": (36, 38, 48),
-            "signal": (32, 34, 48),
-            "rover": (38, 38, 45),
-            "crater": (22, 22, 32),
-            "bones": (36, 34, 40),
-            "watcher": (25, 22, 38),
-            "fuel": (28, 38, 45),
-            "beacon": (36, 34, 40),
-            "glass": (32, 38, 48),
-            "nav": (34, 34, 48),
-            "empty": (34, 35, 43),
-            "life": (28, 42, 36),
-            "comms": (36, 36, 46),
-            "crash": (38, 34, 36),
-            "engine": (42, 32, 28),
-            "shadow": (18, 18, 28),
-        }.get(theme, (34, 34, 42))
-
-        surf.fill(base_col)
+        col, row = self.current_sector()
+        if self.world_map_img:
+            # Draw segment of the larger moon world map background image
+            sub_img = self.world_map_img.subsurface(pygame.Rect(col * 800, row * 600, 800, 600))
+            surf.blit(sub_img, (0, 0))
+        else:
+            surf.fill((34, 34, 42))
 
         # Star strip above playfield / sky feel
         pygame.draw.rect(surf, (4, 4, 12), (0, 0, SCREEN_W, PLAY_TOP))
-
-        # Lunar dust grid / texture
-        rng = random.Random(hash(self.current_sector()) & 999999)
-
-        for _ in range(180):
-            x = rng.randint(0, SCREEN_W)
-            y = rng.randint(PLAY_TOP, SCREEN_H)
-            v = rng.randint(-15, 20)
-            col = (
-                clamp(base_col[0] + v, 10, 90),
-                clamp(base_col[1] + v, 10, 90),
-                clamp(base_col[2] + v, 10, 100),
-            )
-            pygame.draw.circle(surf, col, (x, y), rng.choice([1, 1, 2]))
 
         # Sector border lines like screen tiles / Faith-ish framing
         pygame.draw.rect(surf, (70, 70, 85), (0, PLAY_TOP, SCREEN_W, SCREEN_H - PLAY_TOP), 1)
@@ -809,22 +823,11 @@ class Level1:
             pygame.draw.ellipse(surf, (55, 55, 65), (x, y, 7, 3))
             pygame.draw.ellipse(surf, (50, 50, 60), (x + 12, y + 7, 7, 3))
 
-        if theme == "watcher":
-            # Large eye marking
-            pygame.draw.ellipse(surf, (80, 35, 110), (270, 230, 260, 110), 2)
-            pygame.draw.circle(surf, (90, 0, 130), (400, 285), 34, 2)
-            pygame.draw.circle(surf, (35, 0, 50), (400, 285), 12)
-
-        elif theme == "crater":
-            # Purple crater glow
+        # Atmospheric colored glows (ambient light indicators)
+        if theme == "crater":
             glow = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
             pygame.draw.circle(glow, (80, 0, 120, 50), (400, 330), 150)
             surf.blit(glow, (0, 0))
-
-        elif theme == "signal":
-            if (self.t // 20) % 2 == 0:
-                pygame.draw.circle(surf, RED, (395, 150), 6)
-                pygame.draw.circle(surf, (120, 0, 0), (395, 150), 18, 1)
 
         elif theme == "engine":
             glow = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
@@ -850,137 +853,34 @@ class Level1:
 
         if is_circle_obstacle(ob):
             x, y, r = ob["x"], ob["y"], ob["r"]
-
-            if kind in ("crater", "engine_crater"):
-                fill = (10, 10, 16) if kind == "crater" else (35, 16, 8)
-                rim = (90, 90, 105) if kind == "crater" else (160, 80, 30)
-                pygame.draw.circle(surf, rim, (x, y), r)
-                pygame.draw.circle(surf, fill, (x, y), int(r * 0.78))
-                pygame.draw.circle(surf, (25, 25, 32), (x - 15, y - 10), int(r * 0.45), 2)
+            rect = pygame.Rect(x - r, y - r, r * 2, r * 2)
+            if kind in ("crater", "engine_crater") and self.crater_img:
+                scaled_img = pygame.transform.scale(self.crater_img, (rect.w, rect.h))
+                surf.blit(scaled_img, rect.topleft)
             else:
-                pygame.draw.circle(surf, (65, 65, 75), (x, y), r)
+                if kind in ("crater", "engine_crater"):
+                    fill = (10, 10, 16) if kind == "crater" else (35, 16, 8)
+                    rim = (90, 90, 105) if kind == "crater" else (160, 80, 30)
+                    pygame.draw.circle(surf, rim, (x, y), r)
+                    pygame.draw.circle(surf, fill, (x, y), int(r * 0.78))
+                else:
+                    pygame.draw.circle(surf, (65, 65, 75), (x, y), r)
             return
 
         rect = rect_from_obstacle(ob)
 
-        if kind == "rock":
-            pygame.draw.ellipse(surf, (55, 55, 66), rect)
-            pygame.draw.ellipse(surf, (95, 95, 110), rect, 2)
-            pygame.draw.line(surf, (35, 35, 45), rect.midleft, rect.midright, 1)
-
-        elif kind == "small_rocks":
-            rng = random.Random(rect.x * 11 + rect.y * 3)
-            for _ in range(9):
-                rx = rng.randint(rect.left, rect.right)
-                ry = rng.randint(rect.top, rect.bottom)
-                rr = rng.randint(5, 13)
-                pygame.draw.circle(surf, (55, 55, 65), (rx, ry), rr)
-                pygame.draw.circle(surf, (90, 90, 105), (rx, ry), rr, 1)
-
-        elif kind == "antenna":
-            pygame.draw.rect(surf, (70, 70, 78), rect)
-            pygame.draw.rect(surf, (130, 130, 145), rect, 2)
-            pygame.draw.line(surf, (180, 180, 200), rect.midtop, (rect.centerx, rect.top - 50), 3)
-            pygame.draw.circle(surf, RED if (self.t // 20) % 2 == 0 else (70, 0, 0), (rect.centerx, rect.top - 55), 6)
-
-        elif kind == "rover":
-            pygame.draw.rect(surf, (80, 80, 86), rect, border_radius=8)
-            pygame.draw.rect(surf, (150, 150, 160), rect, 2, border_radius=8)
-            pygame.draw.circle(surf, (25, 25, 30), (rect.left + 25, rect.bottom), 18)
-            pygame.draw.circle(surf, (25, 25, 30), (rect.right - 25, rect.bottom), 18)
-            pygame.draw.rect(surf, (30, 50, 70), (rect.left + 40, rect.top + 15, 45, 25))
-            pygame.draw.line(surf, (140, 140, 150), rect.midtop, (rect.centerx + 40, rect.top - 45), 2)
-
-        elif kind == "helmet":
-            pygame.draw.circle(surf, (185, 185, 195), rect.center, rect.w // 2)
-            pygame.draw.circle(surf, (80, 120, 140), rect.center, rect.w // 3)
-            pygame.draw.circle(surf, (40, 40, 50), rect.center, rect.w // 2, 2)
-
-        elif kind == "eye_mark":
-            pygame.draw.ellipse(surf, (70, 35, 95), rect, 3)
-            pygame.draw.circle(surf, (90, 0, 130), rect.center, min(rect.w, rect.h) // 4, 2)
-            pygame.draw.circle(surf, (20, 0, 35), rect.center, min(rect.w, rect.h) // 9)
-
-        elif kind == "fuel_tank":
-            pygame.draw.rect(surf, (35, 110, 130), rect, border_radius=16)
-            pygame.draw.rect(surf, CYAN, rect, 2, border_radius=16)
-            pygame.draw.circle(surf, (0, 200, 220), rect.center, 10)
-            pygame.draw.line(surf, (0, 160, 180), rect.midleft, rect.midright, 3)
-
-        elif kind == "pipe":
-            pygame.draw.rect(surf, (90, 90, 100), rect, border_radius=8)
-            pygame.draw.rect(surf, (150, 150, 160), rect, 2, border_radius=8)
-            pygame.draw.line(surf, (40, 40, 50), rect.midleft, rect.midright, 2)
-
-        elif kind == "beacon":
-            pygame.draw.rect(surf, (70, 60, 45), rect)
-            pygame.draw.rect(surf, ORANGE, rect, 2)
-            light_col = ORANGE if (self.t // 25) % 2 == 0 else (80, 40, 5)
-            pygame.draw.circle(surf, light_col, (rect.centerx, rect.top - 10), 10)
-            pygame.draw.circle(surf, light_col, (rect.centerx, rect.top - 10), 24, 1)
-
-        elif kind == "crystal":
-            points = [
-                (rect.centerx, rect.top),
-                (rect.right, rect.centery),
-                (rect.centerx + 15, rect.bottom),
-                (rect.left, rect.centery),
-            ]
-            pygame.draw.polygon(surf, (70, 120, 150), points)
-            pygame.draw.polygon(surf, (160, 220, 240), points, 2)
-            pygame.draw.line(surf, (200, 240, 255), rect.midtop, rect.center, 1)
-
-        elif kind == "console":
-            pygame.draw.rect(surf, (35, 40, 55), rect, border_radius=6)
-            pygame.draw.rect(surf, CYAN, rect, 2, border_radius=6)
-            for i in range(4):
-                col = CYAN if (self.t // (15 + i * 5)) % 2 == 0 else (20, 40, 50)
-                pygame.draw.circle(surf, col, (rect.left + 20 + i * 25, rect.top + 20), 4)
-
-        elif kind == "panel":
-            pygame.draw.rect(surf, (55, 55, 65), rect)
-            pygame.draw.rect(surf, (140, 140, 150), rect, 2)
-            pygame.draw.line(surf, (30, 30, 40), rect.topleft, rect.bottomright, 2)
-
-        elif kind == "oxygen_tank":
-            pygame.draw.rect(surf, (25, 100, 50), rect, border_radius=14)
-            pygame.draw.rect(surf, (90, 220, 110), rect, 2, border_radius=14)
-            draw_text(surf, "O2", font_small, (180, 255, 180), rect.centerx, rect.centery)
-
-        elif kind == "dish":
-            pygame.draw.ellipse(surf, (85, 85, 100), rect)
-            pygame.draw.ellipse(surf, (180, 180, 200), rect, 2)
-            pygame.draw.line(surf, (170, 170, 190), rect.center, (rect.centerx + 60, rect.top - 35), 3)
-            pygame.draw.circle(surf, WHITE, (rect.centerx + 60, rect.top - 35), 5)
-
-        elif kind == "ship":
-            draw_ship(surf, rect.centerx, rect.centery + 20, self.t, True)
-
-        elif kind == "debris":
-            pygame.draw.rect(surf, (70, 70, 78), rect)
-            pygame.draw.rect(surf, (150, 150, 160), rect, 2)
-            pygame.draw.line(surf, BLOOD_RED, rect.topleft, rect.bottomright, 2)
-
-        elif kind == "wreckage":
-            pygame.draw.polygon(
-                surf,
-                (75, 70, 70),
-                [rect.topleft, rect.midtop, rect.bottomright, rect.bottomleft]
-            )
-            pygame.draw.polygon(
-                surf,
-                (160, 140, 120),
-                [rect.topleft, rect.midtop, rect.bottomright, rect.bottomleft],
-                2
-            )
-
-        elif kind == "shadow_rock":
-            pygame.draw.ellipse(surf, (8, 8, 14), rect)
-            pygame.draw.ellipse(surf, (45, 35, 60), rect, 2)
-
+        if kind in ("rock", "small_rocks", "shadow_rock"):
+            if self.rock_img:
+                scaled_img = pygame.transform.scale(self.rock_img, (rect.w, rect.h))
+                surf.blit(scaled_img, rect.topleft)
+            else:
+                pygame.draw.ellipse(surf, (55, 55, 66), rect)
         else:
-            pygame.draw.rect(surf, (80, 80, 90), rect)
-            pygame.draw.rect(surf, (150, 150, 160), rect, 2)
+            if self.debris_img:
+                scaled_img = pygame.transform.scale(self.debris_img, (rect.w, rect.h))
+                surf.blit(scaled_img, rect.topleft)
+            else:
+                pygame.draw.rect(surf, (70, 70, 78), rect)
 
     def _draw_part(self, surf):
         info = self.sector_info()
@@ -1013,8 +913,16 @@ class Level1:
             )
 
     def _draw_watcher(self, surf):
-        # If you later use PNG frames, replace this function only.
-        draw_watcher(surf, int(self.watcher_x), int(self.watcher_y), self.watcher_frame)
+        wx = int(self.watcher_x)
+        wy = int(self.watcher_y)
+        t = self.watcher_frame * 0.05
+        bob = int(4 * math.sin(t))
+        if self.watcher_img:
+            scaled_img = pygame.transform.scale(self.watcher_img, (44, 44))
+            rect = scaled_img.get_rect(center=(wx, wy + bob))
+            surf.blit(scaled_img, rect)
+        else:
+            draw_watcher(surf, wx, wy, self.watcher_frame)
 
     def _draw_danger_overlay(self, surf):
         current = self.current_sector()
