@@ -348,28 +348,28 @@ class Level1:
         self._init_sounds()
 
         # ── Image Assets & Sprites (No hardcoded graphics) ──
-        try:
-            self.world_map_img = pygame.transform.scale(
-                pygame.image.load("assets/images/level1_bg.png").convert(),
-                (3200, 2400)
-            )
-        except Exception as e:
-            print(f"[ERROR] Failed to load level1_bg.png: {e}")
-            self.world_map_img = None
-
-        def load_colorkey_img(path):
+        self.quadrant_imgs = {}
+        for q in [1, 2, 3, 4]:
+            path = f"assets/images/level1_q{q}.png"
             try:
-                img = pygame.image.load(path).convert_alpha()
-                img.set_colorkey((0, 0, 0))
-                return img
+                img = pygame.image.load(path).convert()
+                img = pygame.transform.scale(img, (1600, 1200))
+                self.quadrant_imgs[q] = img
+            except Exception as e:
+                print(f"[ERROR] Failed to load quadrant image {path}: {e}")
+                self.quadrant_imgs[q] = None
+
+        def load_transparent_img(path):
+            try:
+                return pygame.image.load(path).convert_alpha()
             except Exception as e:
                 print(f"[WARNING] Failed to load sprite {path}: {e}")
                 return None
 
-        self.watcher_img = load_colorkey_img("assets/images/watcher.png")
-        self.rock_img = load_colorkey_img("assets/images/rock.png")
-        self.crater_img = load_colorkey_img("assets/images/crater.png")
-        self.debris_img = load_colorkey_img("assets/images/debris.png")
+        self.watcher_img = load_transparent_img("assets/images/watcher.png")
+        self.rock_img = load_transparent_img("assets/images/rock.png")
+        self.crater_img = load_transparent_img("assets/images/crater.png")
+        self.debris_img = load_transparent_img("assets/images/debris.png")
 
         # Load astronaut walking frames from Level 2
         self.astro_frames = []
@@ -377,7 +377,7 @@ class Level1:
             path = f"assets/images/monsters/astronaut/ASTRO{i}.png"
             try:
                 img = pygame.image.load(path).convert_alpha()
-                img = pygame.transform.scale(img, (40, 40))
+                img = pygame.transform.scale(img, (52, 52))
                 self.astro_frames.append(img)
             except Exception as e:
                 print(f"[ERROR] Failed to load ASTRO{i}.png: {e}")
@@ -798,9 +798,35 @@ class Level1:
 
     def _draw_sector_background(self, surf):
         col, row = self.current_sector()
-        if self.world_map_img:
-            # Draw segment of the larger moon world map background image
-            sub_img = self.world_map_img.subsurface(pygame.Rect(col * 800, row * 600, 800, 600))
+        
+        # Determine quadrant:
+        # Q1: col in [0,1], row in [0,1]
+        # Q2: col in [2,3], row in [0,1]
+        # Q3: col in [0,1], row in [2,3]
+        # Q4: col in [2,3], row in [2,3]
+        if col < 2:
+            quad_x = 0
+            if row < 2:
+                quad_y = 0
+                q_idx = 1
+            else:
+                quad_y = 2
+                q_idx = 3
+        else:
+            quad_x = 2
+            if row < 2:
+                quad_y = 0
+                q_idx = 2
+            else:
+                quad_y = 2
+                q_idx = 4
+                
+        local_col = col - quad_x
+        local_row = row - quad_y
+        
+        q_img = self.quadrant_imgs.get(q_idx)
+        if q_img:
+            sub_img = q_img.subsurface(pygame.Rect(local_col * 800, local_row * 600, 800, 600))
             surf.blit(sub_img, (0, 0))
         else:
             surf.fill((34, 34, 42))
