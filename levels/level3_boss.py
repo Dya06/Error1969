@@ -554,8 +554,6 @@ class Level3:
     # ─────────────────────────────────────────
     def update(self):
         self.t += 1
-        # Scroll background slowly
-        self.bg_scroll_y = (self.bg_scroll_y + 0.3) % SCREEN_H
         self.player_frame += 1
         self.boss_frame   += 1
 
@@ -596,14 +594,12 @@ class Level3:
 
         # ── 1. Background ────────────────────
         if self.bg_img:
-            # Draw seamless scrolling background image with screen shake offsets
-            by = int(self.bg_scroll_y)
-            surf.blit(self.bg_img, (sx, by + sy))
-            surf.blit(self.bg_img, (sx, by - SCREEN_H + sy))
+            # Draw static spaceship corridor room with screen shake offsets
+            surf.blit(self.bg_img, (sx, sy))
         else:
             surf.fill(COSMIC_BLU)
 
-        # Phase color tint overlays for atmospheric effect
+        # Phase color tint overlays for atmospheric effect (emergency warning flashes)
         if self.phase == 2:
             tint = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
             tint.fill((255, 40, 60, 25))  # Subtle red tint for Rage phase
@@ -613,15 +609,17 @@ class Level3:
             tint.fill((140, 30, 200, 35))  # Subtle purple tint for Desperation/Void phase
             surf.blit(tint, (0, 0))
 
-        # Parallax stars (drawn on top of the scrolling nebula for depth)
+        # Floating glowing electrical sparks/embers rising from damaged ship corridor
         for li, layer in enumerate(self.star_layers):
-            speed = (li + 1) * 0.15
+            speed = (li + 1) * 0.25
             for s in layer:
-                sy2 = (s['y'] + self.t * speed) % SCREEN_H
-                bright = int(160 + 80 * math.sin(self.t * 0.03 + s['phase']))
-                col = (bright, bright, min(255, bright + 40))
+                # Scroll upward to look like rising embers
+                sy2 = (s['y'] - self.t * speed) % SCREEN_H
+                bright = int(160 + 95 * math.sin(self.t * 0.05 + s['phase']))
+                # Glowing orange/gold color
+                col = (255, clamp(int(100 + bright * 0.5), 0, 255), 40)
                 pygame.draw.circle(surf, col,
-                                   (int(s['x']) + sx, int(sy2) + sy), s['r'])
+                                   (int(s['x']) + sx, int(sy2) + sy), max(1, s['r'] - 1))
 
         # Floating background asteroids
         for a in self.bg_asteroids:
