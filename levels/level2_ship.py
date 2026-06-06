@@ -94,6 +94,29 @@ S2_TASKS_DEF = [
     {"name": "COMM ARRAY", "desc": "Reconnect distress signal", "tile": (18, 5), "col": GOLD, "kind": "comms"},
 ]
 
+S2_SOLID_OBJECTS = [
+    # CAFETERIA TABLES
+    pygame.Rect(18 * S2_TS + 6, 4 * S2_TS + 8, 4 * S2_TS - 12, 1 * S2_TS - 12),
+    pygame.Rect(18 * S2_TS + 6, 6 * S2_TS + 8, 4 * S2_TS - 12, 1 * S2_TS - 12),
+    pygame.Rect(18 * S2_TS + 6, 8 * S2_TS + 8, 4 * S2_TS - 12, 1 * S2_TS - 12),
+
+    # WEAPONS CONSOLES
+    pygame.Rect(31 * S2_TS + 8, 3 * S2_TS + 8, 2 * S2_TS - 16, 2 * S2_TS - 16),
+    pygame.Rect(34 * S2_TS + 8, 3 * S2_TS + 8, 2 * S2_TS - 16, 2 * S2_TS - 16),
+
+    # STORAGE CRATES
+    pygame.Rect(18 * S2_TS + 8, 22 * S2_TS + 8, S2_TS - 16, S2_TS - 16),
+    pygame.Rect(20 * S2_TS + 8, 22 * S2_TS + 8, S2_TS - 16, S2_TS - 16),
+    pygame.Rect(22 * S2_TS + 8, 22 * S2_TS + 8, S2_TS - 16, S2_TS - 16),
+    pygame.Rect(18 * S2_TS + 8, 24 * S2_TS + 8, S2_TS - 16, S2_TS - 16),
+    pygame.Rect(21 * S2_TS + 8, 24 * S2_TS + 8, S2_TS - 16, S2_TS - 16),
+
+    # ELECTRICAL BOXES - slightly smaller
+    pygame.Rect(5 * S2_TS + 10, 22 * S2_TS + 8, S2_TS - 20, 2 * S2_TS - 16),
+    pygame.Rect(7 * S2_TS + 10, 22 * S2_TS + 8, S2_TS - 20, 2 * S2_TS - 16),
+    pygame.Rect(9 * S2_TS + 10, 22 * S2_TS + 8, S2_TS - 20, 2 * S2_TS - 16),
+]
+
 def _tile_to_world(tc, tr):
     return tc * S2_TS + S2_TS // 2, tr * S2_TS + S2_TS // 2
 
@@ -101,13 +124,34 @@ def _is_floor_tile(c, r):
     return 0 <= c < S2_COLS and 0 <= r < S2_ROWS and S2_MAP[r][c] == S2_FLOOR
 
 def _blocked_world(x, y, radius=11):
-    checks = [(-radius, -radius), (radius, -radius), (-radius, radius), (radius, radius),
-              (0, -radius), (0, radius), (-radius, 0), (radius, 0)]
+    checks = [
+        (-radius, -radius), (radius, -radius),
+        (-radius, radius), (radius, radius),
+        (0, -radius), (0, radius),
+        (-radius, 0), (radius, 0),
+    ]
+
+    # Tile wall / void collision
     for ox, oy in checks:
         c = int((x + ox) / S2_TS)
         r = int((y + oy) / S2_TS)
+
         if not _is_floor_tile(c, r):
             return True
+
+    # Solid object collision
+    player_rect = pygame.Rect(
+        int(x - radius),
+        int(y - radius),
+        radius * 2,
+        radius * 2
+    )
+
+    for solid in S2_SOLID_OBJECTS:
+        # Inflate slightly smaller if collision feels too strict
+        if player_rect.colliderect(solid.inflate(-6, -6)):
+            return True
+
     return False
 
 def _bfs_path(sx, sy, gx, gy):
@@ -555,6 +599,60 @@ class Level2:
             pygame.draw.rect(surf, (180, 30, 40), (x + 6, y + 6, 20, 18), 1)
             pygame.draw.rect(surf, (220, 70, 80), (x + 11, y + 12, 3, 3))
             pygame.draw.rect(surf, (220, 70, 80), (x + 18, y + 16, 3, 3))
+
+        # ── EXTRA NON-SOLID ROOM DETAIL ───────────────────
+
+        detail_tiles = [
+            # Security / corridors
+            (12, 14, "cable"), (14, 16, "panel"), (11, 13, "scratch"),
+
+            # Cafeteria
+            (23, 4, "scratch"), (25, 7, "panel"), (16, 5, "cable"),
+
+            # Weapons
+            (32, 6, "sparks"), (36, 7, "scratch"),
+
+            # Navigation
+            (41, 7, "panel"), (40, 5, "cable"),
+
+            # Shields
+            (34, 14, "scratch"), (36, 16, "panel"),
+
+            # Medbay
+            (20, 16, "cable"), (24, 17, "stain"),
+
+            # Storage
+            (19, 25, "scratch"), (23, 23, "panel"),
+
+            # Electrical
+            (6, 25, "sparks"), (8, 24, "cable"),
+        ]
+
+        for tc, tr, kind in detail_tiles:
+            x = tc * S2_TS
+            y = tr * S2_TS
+
+            if kind == "cable":
+                pygame.draw.line(surf, (55, 20, 20), (x + 4, y + 18), (x + 28, y + 12), 2)
+                pygame.draw.line(surf, (20, 45, 80), (x + 6, y + 22), (x + 26, y + 24), 2)
+
+            elif kind == "panel":
+                pygame.draw.rect(surf, (18, 20, 28), (x + 7, y + 8, 18, 14))
+                pygame.draw.rect(surf, (55, 65, 80), (x + 7, y + 8, 18, 14), 1)
+                pygame.draw.rect(surf, (120, 25, 25), (x + 11, y + 12, 4, 4))
+
+            elif kind == "scratch":
+                pygame.draw.line(surf, (10, 12, 18), (x + 6, y + 9), (x + 24, y + 16), 1)
+                pygame.draw.line(surf, (35, 35, 45), (x + 10, y + 20), (x + 26, y + 22), 1)
+
+            elif kind == "sparks":
+                pygame.draw.rect(surf, (220, 70, 40), (x + 12, y + 10, 3, 3))
+                pygame.draw.rect(surf, (255, 180, 40), (x + 20, y + 15, 2, 2))
+                pygame.draw.line(surf, (180, 40, 20), (x + 8, y + 22), (x + 25, y + 26), 1)
+
+            elif kind == "stain":
+                pygame.draw.rect(surf, (55, 20, 25), (x + 8, y + 15, 12, 4))
+                pygame.draw.rect(surf, (35, 10, 15), (x + 14, y + 20, 8, 3))
 
     # ─────────────────────────────────────────────
     # UPDATE
