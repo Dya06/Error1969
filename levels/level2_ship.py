@@ -12,7 +12,6 @@ import pygame
 from settings import *
 from utils import *
 from core.particles import spawn_particles, update_particles
-from graphics.sprites import draw_astronaut
 
 # ─────────────────────────────────────────────
 # SETTINGS
@@ -28,6 +27,8 @@ WORLD_H = S2_ROWS * S2_TS
 
 FE_FRAME_DIR = "assets/images/monsters/failed_experiment"
 FE_FRAME_COUNT = 8
+ASTRO_FRAME_DIR = "assets/images/monsters/astronaut"
+ASTRO_FRAME_COUNT = 10
 
 # ─────────────────────────────────────────────
 # MAP DATA
@@ -195,6 +196,9 @@ class Level2:
         self.player_frame = 0
         self.facing = 1
         self.speed = 2.7
+        self.astro_frames = self._load_astronaut_frames()
+        self.astro_anim_speed = 6
+        self.astro_facing = 1  # 1 = right, -1 = left
 
         self.ex, self.ey = _tile_to_world(5, 15)
         self.ex = float(self.ex)
@@ -250,9 +254,39 @@ class Level2:
                 frames.append(self._make_missing_fe_frame(i))
                 continue
             img = pygame.image.load(path).convert_alpha()
-            img = pygame.transform.scale(img, (66, 66))
+            img = pygame.transform.scale(img, (62, 62))
             frames.append(img)
         return frames
+    
+    def _load_astronaut_frames(self):
+        frames = []
+
+        for i in range(ASTRO_FRAME_COUNT):
+            path = os.path.join(ASTRO_FRAME_DIR, f"ASTRO{i}.png")
+
+            if not os.path.exists(path):
+                print(f"[WARNING] Missing astronaut frame: {path}")
+                frames.append(self._make_missing_astronaut_frame(i))
+                continue
+
+            img = pygame.image.load(path).convert_alpha()
+
+            # Use scale, not smoothscale, to keep pixel style.
+            img = pygame.transform.scale(img, (52, 52))
+
+            frames.append(img)
+
+        return frames
+    
+    def _make_missing_astronaut_frame(self, i):
+        s = pygame.Surface((42, 42), pygame.SRCALPHA)
+
+        pygame.draw.rect(s, (230, 230, 230), (14, 16, 14, 18))
+        pygame.draw.circle(s, (220, 220, 220), (21, 12), 9)
+        pygame.draw.rect(s, CYAN, (17, 9, 8, 5))
+        draw_text(s, str(i), font_tiny, RED, 21, 34)
+
+        return s
 
     def _make_missing_fe_frame(self, i):
         # Only a fallback so the game can still open while you fix file paths.
@@ -693,6 +727,7 @@ class Level2:
             dy *= 0.707
         if dx:
             self.facing = dx
+            self.astro_facing = 1 if dx > 0 else -1
 
         speed = self.speed
         if self.active_task is not None and keys[pygame.K_e]:
@@ -954,8 +989,18 @@ class Level2:
     def _draw_player(self, surf):
         vx, vy = self._world_to_view(self.px, self.py)
 
-        if self.immune_timer <= 0 or self.immune_timer % 8 < 4:
-            draw_astronaut(surf, vx, vy, self.player_frame, self.facing)
+        if self.immune_timer > 0 and self.immune_timer % 8 >= 4:
+            return
+
+        frame_index = (self.player_frame // self.astro_anim_speed) % len(self.astro_frames)
+        img = self.astro_frames[frame_index]
+
+        # This assumes ASTRO frames face RIGHT by default.
+        if self.astro_facing == -1:
+            img = pygame.transform.flip(img, True, False)
+
+        rect = img.get_rect(center=(vx, vy))
+        surf.blit(img, rect)
 
     def _draw_horror_lighting(self, surf):
         # Full darkness layer
