@@ -1065,15 +1065,32 @@ class Level1:
         self._draw_sector_minimap(surf)
 
     def _draw_sector_minimap(self, surf):
-        size = 9
+        cell = 18
         gap = 3
-        start_x = SCREEN_W - 78
-        start_y = 6
+        pad = 8
+        grid_w = MAP_COLS * cell + (MAP_COLS - 1) * gap
+        grid_h = MAP_ROWS * cell + (MAP_ROWS - 1) * gap
+
+        box_w = grid_w + pad * 2
+        box_h = grid_h + pad * 2
+        margin = 12
+        box_x = SCREEN_W - box_w - margin
+        box_y = SCREEN_H - box_h - margin
+
+        box_surf = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
+        box_surf.fill((6, 8, 18, 210))
+        surf.blit(box_surf, (box_x, box_y))
+        pygame.draw.rect(surf, (90, 90, 120), (box_x, box_y, box_w, box_h), 1, border_radius=4)
+
+        draw_text_left(surf, "MAP", font_tiny, (120, 120, 150), box_x + 4, box_y - 14)
+
+        start_x = box_x + pad
+        start_y = box_y + pad
 
         for row in range(MAP_ROWS):
             for col in range(MAP_COLS):
-                x = start_x + col * (size + gap)
-                y = start_y + row * (size + gap)
+                x = start_x + col * (cell + gap)
+                y = start_y + row * (cell + gap)
                 sector = (col, row)
 
                 if sector == self.current_sector():
@@ -1085,8 +1102,15 @@ class Level1:
                 else:
                     colr = (20, 20, 30)
 
-                pygame.draw.rect(surf, colr, (x, y, size, size))
-                pygame.draw.rect(surf, (120, 120, 150), (x, y, size, size), 1)
+                pygame.draw.rect(surf, colr, (x, y, cell, cell))
+                pygame.draw.rect(surf, (120, 120, 150), (x, y, cell, cell), 1)
+
+                if sector == self.current_sector():
+                    dot_x = x + int((self.px - PLAY_LEFT) / (PLAY_RIGHT - PLAY_LEFT) * cell)
+                    dot_y = y + int((self.py - PLAY_TOP) / (PLAY_BOTTOM - PLAY_TOP) * cell)
+                    dot_x = max(x + 1, min(x + cell - 2, dot_x))
+                    dot_y = max(y + 1, min(y + cell - 2, dot_y))
+                    pygame.draw.circle(surf, WHITE, (dot_x, dot_y), 2)
 
     def _draw_sector_title(self, surf):
         if self.sector_flash_timer <= 0:
