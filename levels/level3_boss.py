@@ -599,14 +599,23 @@ class Level3:
         else:
             surf.fill(COSMIC_BLU)
 
+        # Intruder warning light (flickering red alert overlay in background corridor)
+        base_alpha = 15 + 15 * math.sin(self.t * 0.07)
+        # Occasional rapid flicker/drop simulating electrical warning system instability
+        if (self.t % 110 < 6) or (self.t % 170 < 10):
+            base_alpha = max(0, base_alpha - 12)
+        intruder_tint = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        intruder_tint.fill((255, 20, 20, int(base_alpha)))
+        surf.blit(intruder_tint, (0, 0))
+
         # Phase color tint overlays for atmospheric effect (emergency warning flashes)
         if self.phase == 2:
             tint = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            tint.fill((255, 40, 60, 25))  # Subtle red tint for Rage phase
+            tint.fill((255, 40, 60, 20))  # Subtle enrage red overlay
             surf.blit(tint, (0, 0))
         elif self.phase == 3:
             tint = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            tint.fill((140, 30, 200, 35))  # Subtle purple tint for Desperation/Void phase
+            tint.fill((140, 30, 200, 30))  # Purple reactor overload overlay
             surf.blit(tint, (0, 0))
 
         # Floating glowing electrical sparks/embers rising from damaged ship corridor
