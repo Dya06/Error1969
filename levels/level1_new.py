@@ -32,7 +32,7 @@ PLAY_LEFT = 0
 PLAY_RIGHT = SCREEN_W
 
 PLAYER_RADIUS = 11
-WATCHER_RADIUS = 22
+WATCHER_RADIUS = 30
 
 # Player starts at D2 = col 1, row 3
 START_SECTOR = (1, 3)
@@ -348,16 +348,18 @@ class Level1:
         self._init_sounds()
 
         # ── Image Assets & Sprites (No hardcoded graphics) ──
-        self.quadrant_imgs = {}
-        for q in [1, 2, 3, 4]:
-            path = f"assets/images/level1_q{q}.png"
-            try:
-                img = pygame.image.load(path).convert()
-                img = pygame.transform.scale(img, (1600, 1200))
-                self.quadrant_imgs[q] = img
-            except Exception as e:
-                print(f"[ERROR] Failed to load quadrant image {path}: {e}")
-                self.quadrant_imgs[q] = None
+        self.sector_imgs = {}
+        for row in range(MAP_ROWS):
+            for col in range(MAP_COLS):
+                code = sector_label(col, row)
+                path = f"assets/images/level1_{code}.png"
+                try:
+                    img = pygame.image.load(path).convert()
+                    img = pygame.transform.scale(img, (800, 600))
+                    self.sector_imgs[code] = img
+                except Exception as e:
+                    print(f"[ERROR] Failed to load sector image {path}: {e}")
+                    self.sector_imgs[code] = None
 
         def load_transparent_img(path):
             try:
@@ -669,6 +671,10 @@ class Level1:
         wc, wr = self.watcher_sector
         pc, pr = self.current_sector()
 
+        # If already in the same sector, don't move sector and don't reset spawn position
+        if (wc, wr) == (pc, pr):
+            return
+
         # Determine shortest wrapped horizontal direction
         right_steps = (pc - wc) % MAP_COLS
         left_steps = (wc - pc) % MAP_COLS
@@ -716,24 +722,74 @@ class Level1:
         self.watcher_x, self.watcher_y = best
 
     def _chase_player(self):
+        if not hasattr(self, "watcher_slide_sign"):
+            self.watcher_slide_sign = 0
+            self.watcher_slide_angle = 0.0
+
         dx = self.px - self.watcher_x
         dy = self.py - self.watcher_y
         dist = math.hypot(dx, dy)
 
         if dist > 1:
-            nx = self.watcher_x + (dx / dist) * self.watcher_speed
-            ny = self.watcher_y + (dy / dist) * self.watcher_speed
+            target_angle = math.atan2(dy, dx)
+            speed = self.watcher_speed
 
-            # Watcher can glide slightly through tight areas, but avoid big obstacles
-            if not self._collides_with_obstacle(nx, ny, WATCHER_RADIUS):
-                self.watcher_x = nx
-                self.watcher_y = ny
+            # Check if direct path is clear
+            dir_x = self.watcher_x + math.cos(target_angle) * speed
+            dir_y = self.watcher_y + math.sin(target_angle) * speed
+            direct_clear = not self._collides_with_obstacle(dir_x, dir_y, WATCHER_RADIUS)
+
+            if direct_clear:
+                # Direct path is clear! Go straight and reset slide state
+                self.watcher_slide_sign = 0
+                self.watcher_x = dir_x
+                self.watcher_y = dir_y
             else:
-                # If blocked, try simple axis movement
-                if not self._collides_with_obstacle(nx, self.watcher_y, WATCHER_RADIUS):
-                    self.watcher_x = nx
-                if not self._collides_with_obstacle(self.watcher_x, ny, WATCHER_RADIUS):
-                    self.watcher_y = ny
+                # Direct path is blocked! We need to slide
+                found_slide = False
+                
+                # If we already have a slide direction, try to keep it
+                if self.watcher_slide_sign != 0:
+                    # Scan offsets using the same sign
+                    for deg in [30, 45, 60, 75, 90, 105, 120, 135, 150]:
+                        angle = target_angle + self.watcher_slide_sign * math.radians(deg)
+                        cx = self.watcher_x + math.cos(angle) * speed
+                        cy = self.watcher_y + math.sin(angle) * speed
+                        
+                        if not self._collides_with_obstacle(cx, cy, WATCHER_RADIUS):
+                            self.watcher_slide_angle = angle
+                            self.watcher_x = cx
+                            self.watcher_y = cy
+                            found_slide = True
+                            break
+                            
+                # If we didn't have a sign, or the existing sign is blocked, scan both signs
+                if not found_slide:
+                    for deg in [45, 60, 75, 90, 105, 120, 135]:
+                        rad_offset = math.radians(deg)
+                        # Try both Left and Right
+                        for sign in [1, -1]:
+                            angle = target_angle + sign * rad_offset
+                            cx = self.watcher_x + math.cos(angle) * speed
+                            cy = self.watcher_y + math.sin(angle) * speed
+                            
+                            if not self._collides_with_obstacle(cx, cy, WATCHER_RADIUS):
+                                self.watcher_slide_sign = sign
+                                self.watcher_slide_angle = angle
+                                self.watcher_x = cx
+                                self.watcher_y = cy
+                                found_slide = True
+                                break
+                        if found_slide:
+                            break
+                            
+                # Fallback: simple axis movement if absolutely everything is blocked
+                if not found_slide:
+                    self.watcher_slide_sign = 0
+                    if not self._collides_with_obstacle(dir_x, self.watcher_y, WATCHER_RADIUS):
+                        self.watcher_x = dir_x
+                    if not self._collides_with_obstacle(self.watcher_x, dir_y, WATCHER_RADIUS):
+                        self.watcher_y = dir_y
 
         if dist < 34 and not self.jumpscare_active:
             self._trigger_jumpscare()
@@ -797,37 +853,11 @@ class Level1:
         self._draw_transition_overlay(surf)
 
     def _draw_sector_background(self, surf):
-        col, row = self.current_sector()
-        
-        # Determine quadrant:
-        # Q1: col in [0,1], row in [0,1]
-        # Q2: col in [2,3], row in [0,1]
-        # Q3: col in [0,1], row in [2,3]
-        # Q4: col in [2,3], row in [2,3]
-        if col < 2:
-            quad_x = 0
-            if row < 2:
-                quad_y = 0
-                q_idx = 1
-            else:
-                quad_y = 2
-                q_idx = 3
-        else:
-            quad_x = 2
-            if row < 2:
-                quad_y = 0
-                q_idx = 2
-            else:
-                quad_y = 2
-                q_idx = 4
-                
-        local_col = col - quad_x
-        local_row = row - quad_y
-        
-        q_img = self.quadrant_imgs.get(q_idx)
-        if q_img:
-            sub_img = q_img.subsurface(pygame.Rect(local_col * 800, local_row * 600, 800, 600))
-            surf.blit(sub_img, (0, 0))
+        info = self.sector_info()
+        code = info["code"]
+        img = self.sector_imgs.get(code)
+        if img:
+            surf.blit(img, (0, 0))
         else:
             surf.fill((34, 34, 42))
 
@@ -944,7 +974,7 @@ class Level1:
         t = self.watcher_frame * 0.05
         bob = int(4 * math.sin(t))
         if self.watcher_img:
-            scaled_img = pygame.transform.scale(self.watcher_img, (44, 44))
+            scaled_img = pygame.transform.scale(self.watcher_img, (72, 72))
             rect = scaled_img.get_rect(center=(wx, wy + bob))
             surf.blit(scaled_img, rect)
         else:
