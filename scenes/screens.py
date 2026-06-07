@@ -666,10 +666,10 @@ class GameOverScreen:
         self.glitch_timer = 0
         self.fade_in = 0
 
-        self.font_big = pygame.font.SysFont("consolas", 74, bold=True)
-        self.font_title2 = pygame.font.SysFont("consolas", 38, bold=True)
-        self.font_med2 = pygame.font.SysFont("consolas", 24, bold=True)
-        self.font_small2 = pygame.font.SysFont("consolas", 19, bold=True)
+        self.font_big = pygame.font.SysFont("consolas", 72, bold=True)
+        self.font_title2 = pygame.font.SysFont("consolas", 31, bold=True)
+        self.font_med2 = pygame.font.SysFont("consolas", 23, bold=True)
+        self.font_small2 = pygame.font.SysFont("consolas", 22, bold=True)
         self.font_tiny2 = pygame.font.SysFont("consolas", 14, bold=True)
 
         self._winning_channel = None
@@ -910,8 +910,8 @@ class GameOverScreen:
     def _draw_pixel_button(self, surf, rect, text):
         hover = rect.collidepoint(pygame.mouse.get_pos())
 
-        fill = (34, 8, 10) if not hover else (55, 12, 16)
-        border = (205, 55, 45) if self.t % 50 < 30 else (110, 25, 20)
+        fill = (34, 8, 10) if not hover else (58, 12, 16)
+        border = (215, 60, 48) if self.t % 50 < 32 else (130, 28, 22)
         shadow = rect.move(5, 5)
 
         # Pixel shadow
@@ -922,19 +922,41 @@ class GameOverScreen:
         pygame.draw.rect(surf, border, rect, 3)
         pygame.draw.rect(surf, (0, 0, 0), rect.inflate(-10, -10), 2)
 
-        # Tiny glitch line
+        # Inner red glow
+        glow = pygame.Surface((rect.w - 12, rect.h - 12), pygame.SRCALPHA)
+        glow.fill((180, 35, 25, 42 if self.t % 60 < 40 else 22))
+        surf.blit(glow, (rect.x + 6, rect.y + 6))
+
+        # Hover glitch line
         if hover and self.t % 18 < 8:
             y = rect.y + random.randint(8, rect.h - 8)
-            pygame.draw.line(surf, (255, 90, 70), (rect.x + 8, y), (rect.right - 8, y), 2)
+            pygame.draw.line(
+                surf,
+                (255, 90, 70),
+                (rect.x + 10, y),
+                (rect.right - 10, y),
+                2
+            )
 
+        # Text shadow
         self._render_text(
             surf,
             text,
             self.font_small2,
-            (245, 220, 190),
+            (45, 0, 0),
+            rect.centerx + 2,
+            rect.centery + 2
+        )
+
+        # Main text
+        self._render_text(
+            surf,
+            text,
+            self.font_small2,
+            (255, 230, 190),
             rect.centerx,
             rect.centery
-        )      
+        )     
 
     def _draw_win_screen(self, surf):
         # ─────────────────────────────────────────────
@@ -987,7 +1009,7 @@ class GameOverScreen:
             self.font_tiny2,
             header_col,
             panel_rect.centerx,
-            panel_rect.y + 28
+            panel_rect.y + 38
         )
 
         # Glitch strips inside panel
@@ -1043,7 +1065,7 @@ class GameOverScreen:
 
         # Warning line — bigger, clearer
         warning_text = "RETURN VECTOR CONTAMINATED"
-        warning_col = (255, 125, 45) if self.t % 55 < 38 else (170, 45, 35)
+        warning_col = (255, 135, 45) if self.t % 55 < 38 else (190, 55, 40)
 
         self._render_text(
             surf,
@@ -1051,30 +1073,23 @@ class GameOverScreen:
             self.font_title2,
             warning_col,
             panel_rect.centerx,
-            panel_rect.y + 158
+            panel_rect.y + 165
         )
 
         # Left-aligned diagnostics
         diag_x = panel_rect.x + 70
-        diag_y = panel_rect.y + 215
+        diag_y = panel_rect.y + 228
 
-        pygame.draw.rect(
-            surf,
-            (10, 7, 8),
-            (diag_x - 18, diag_y - 18, panel_rect.w - 105, 82)
-        )
-        pygame.draw.rect(
-            surf,
-            (75, 20, 16),
-            (diag_x - 18, diag_y - 18, panel_rect.w - 105, 82),
-            2
-        )
+        diag_rect = pygame.Rect(diag_x - 18, diag_y - 20, panel_rect.w - 105, 88)
+
+        pygame.draw.rect(surf, (10, 7, 8), diag_rect)
+        pygame.draw.rect(surf, (75, 20, 16), diag_rect, 2)
 
         self._render_text(
             surf,
             "SYS.STATUS : VITALS NORMAL",
             self.font_med2,
-            (220, 190, 125),
+            (220, 195, 135),
             diag_x,
             diag_y,
             center=False
@@ -1084,24 +1099,23 @@ class GameOverScreen:
             surf,
             "DIAGNOSTIC : UNKNOWN ORGANISM DETECTED",
             self.font_med2,
-            (255, 135, 55),
+            (255, 145, 60),
             diag_x,
-            diag_y + 34,
+            diag_y + 36,
             center=False
         )
 
-        # Tiny footer inside panel
         self._render_text(
             surf,
             "APOLLO RETURN LOG // BIO-SIGNAL MISMATCH // ARCHIVE DAMAGED",
             self.font_tiny2,
-            (95, 45, 38),
+            (145, 150, 155),
             panel_rect.centerx,
-            panel_rect.bottom - 24
+            panel_rect.bottom - 38
         )
 
         # Single action button — tighter, blockier
-        button_rect = pygame.Rect(SCREEN_W // 2 - 160, 490, 320, 44)
+        button_rect = pygame.Rect(SCREEN_W // 2 - 145, 492, 290, 44)
         self._draw_pixel_button(
             surf,
             button_rect,
