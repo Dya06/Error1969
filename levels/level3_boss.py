@@ -7,10 +7,6 @@ from settings import *
 from utils import *
 
 
-# ─────────────────────────────────────────────
-# ASSET PATHS
-# ─────────────────────────────────────────────
-
 BG_PATHS = [
     "assets/images/LVL3.png",
     "assets/images/LVL3.jpg",
@@ -20,9 +16,9 @@ BG_PATHS = [
 
 ASTRO3_FRAME_DIR = "assets/images/monsters/astro3"
 
-ASTRO_FRAME_COUNT = 5       # ASTRO0 - ASTRO4
-ASTRO_SHOOT_COUNT = 4       # ASTROS0 - ASTROS3
-BULLET_FRAME_COUNT = 9      # BULLET1 - BULLET9
+ASTRO_FRAME_COUNT = 5      
+ASTRO_SHOOT_COUNT = 4   
+BULLET_FRAME_COUNT = 9      
 
 ME_FRAME_DIR = "assets/images/monsters/moon_eater"
 ME_FRAME_COUNT = 8
@@ -30,10 +26,6 @@ ME_FRAME_COUNT = 8
 ACID_FRAME_DIR = ME_FRAME_DIR
 ACID_FRAME_COUNT = 8
 
-
-# ─────────────────────────────────────────────
-# LEVEL SETTINGS
-# ─────────────────────────────────────────────
 
 GROUND_Y = SCREEN_H - 105
 BOTTOM_HUD_H = 82
@@ -50,7 +42,7 @@ NORMAL_DAMAGE = 3
 BOOST_DAMAGE = 5
 BOOST_CHARGE_TIME = 90
 
-BOOST_CHARGE_TIME = 90   # hold R for about 1.5 seconds at 60 FPS
+BOOST_CHARGE_TIME = 90  
 
 BOSS_MAX_HP = 50
 PLAYER_MAX_HP = 30
@@ -88,10 +80,8 @@ class Level3:
         self.lose = False
         self.t = 0
 
-        # Background
         self.bg = self._load_background()
 
-        # Player
         self.px = 110
         self.py = GROUND_Y
         self.vx = 0
@@ -102,7 +92,6 @@ class Level3:
         self.player_max = PLAYER_MAX_HP
         self.immune_timer = 0
 
-        # Astronaut sprite frames
         self.astro_frames = self._load_astro3_frames()
         self.astro_shoot_frames = self._load_astro3_shoot_frames()
         self.bullet_frames = self._load_bullet_frames()
@@ -113,17 +102,14 @@ class Level3:
         self.shooting_timer = 0
         self.shooting_anim_speed = 4
 
-        # Weapon
         self.bullets = []
         self.shoot_cooldown = 0
 
-        # Boost shot
         self.boost_charge = 0
         self.boost_ready = False
         self.boost_charging = False
         self.boost_flash_timer = 0
 
-        # Boss
         self.boss_x = SCREEN_W - 165
         self.boss_y = GROUND_Y - 150
         self.boss_hp = BOSS_MAX_HP
@@ -138,7 +124,6 @@ class Level3:
         self.acid_frames = self._load_acid_frames()
         self.acid_anim_speed = 4
 
-        # Weak point
         self.weak_point = {
             "x": self.boss_x,
             "y": self.boss_y,
@@ -147,20 +132,17 @@ class Level3:
             "timer": 0,
         }
 
-        # Boss attacks
         self.enemy_projectiles = []
         self.corruption_zones = []
         self.blackout_timer = 0
         self.blackout_active = False
 
-        # Screen effects
         self.screen_shake = 22
         self.intro_shake_timer = 90
         self.flash_msg = ""
         self.flash_timer = 0
         self.warning_timer = 120
 
-        # Intro reveal
         self.reveal_timer = 120
 
         self.death_particles = []
@@ -180,9 +162,6 @@ class Level3:
 
         play_music("assets/audio/level3/Level3BossMusic.wav", loops=-1, volume=0.45)
 
-    # ─────────────────────────────────────────────
-    # ASSETS
-    # ─────────────────────────────────────────────
 
     def _load_background(self):
         for path in BG_PATHS:
@@ -216,8 +195,6 @@ class Level3:
 
             img = pygame.image.load(path).convert_alpha()
 
-            # Adjust this size depending on your sprite.
-            # Since Moon Eater is a boss, it should be large.
             img = pygame.transform.scale(img, (210, 260))
 
             frames.append(img)
@@ -302,7 +279,6 @@ class Level3:
 
             img = pygame.image.load(path).convert_alpha()
 
-            # Adjust size if needed
             img = pygame.transform.scale(img, (PLAYER_W, PLAYER_H))
             frames.append(img)
 
@@ -368,9 +344,7 @@ class Level3:
 
         draw_text(surf, str(i), font_tiny, RED, PLAYER_W // 2, PLAYER_H - 8)
         return surf
-    # ─────────────────────────────────────────────
-    # INPUT
-    # ─────────────────────────────────────────────
+
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
@@ -391,11 +365,9 @@ class Level3:
 
         elif event.type == pygame.KEYUP:
             if event.key == pygame.K_r:
-                # Release R to fire boost shot if fully charged
                 if self.boost_ready:
                     self._shoot(boost=True)
 
-                # Reset charge either way
                 self.boost_charging = False
                 self.boost_ready = False
                 self.boost_charge = 0
@@ -403,10 +375,6 @@ class Level3:
                 if self._charge_channel is not None:
                     self._charge_channel.stop()
                     self._charge_channel = None
-
-    # ─────────────────────────────────────────────
-    # UPDATE
-    # ─────────────────────────────────────────────
 
     def update(self):
         if self.done or self.lose:
@@ -437,7 +405,6 @@ class Level3:
         if self.intro_shake_timer > 0:
             self.intro_shake_timer -= 1
 
-            # Strong at first, then slowly settles
             self.screen_shake = max(0, int(22 * (self.intro_shake_timer / 90)))
 
         elif self.screen_shake > 0:
@@ -501,10 +468,8 @@ class Level3:
         self.px += self.vx
         self.py += self.vy
 
-        # Arena boundaries
         self.px = clamp(self.px, 45, SCREEN_W - 250)
 
-        # Floor collision
         if self.py >= GROUND_Y:
             self.py = GROUND_Y
             self.vy = 0
@@ -542,7 +507,6 @@ class Level3:
 
             hit = False
 
-            # 1. Weak point hit = full damage
             if self.weak_point["active"]:
                 dx = bullet["x"] - self.weak_point["x"]
                 dy = bullet["y"] - self.weak_point["y"]
@@ -561,8 +525,6 @@ class Level3:
 
                     hit = True
 
-            # 2. Boss body hit = smaller damage
-            # This prevents Phase 2 from feeling broken.
             if not hit:
                 boss_body_rect = pygame.Rect(
                     int(self.boss_x - 80),
@@ -596,7 +558,6 @@ class Level3:
         self.boss_attack_timer += 1
         self.weak_point["timer"] += 1
 
-        # Boss weak point pulses / shifts
         pulse_x = math.sin(self.t * 0.035) * 18
         pulse_y = math.sin(self.t * 0.055) * 14
 
@@ -612,7 +573,6 @@ class Level3:
             self.weak_point["x"] = self.boss_x + pulse_x
             self.weak_point["y"] = self.boss_y + 42 + pulse_y
 
-        # Attacks become faster by phase
         attack_rate = 115 if self.boss_phase == 1 else 85 if self.boss_phase == 2 else 62
 
         if self.boss_attack_timer >= attack_rate:
@@ -632,7 +592,7 @@ class Level3:
             elif choice == "blackout":
                 self._trigger_blackout()
 
-        # Voice line occasionally
+
         if self.boss_voice_timer > 0:
             self.boss_voice_timer -= 1
         elif random.random() < 0.004:
@@ -662,7 +622,6 @@ class Level3:
             self._play_boss_noise()
 
     def _move_weak_point(self):
-        # Brief flicker, mostly visual through phase positioning
         self.weak_point["active"] = True
         self.weak_point["timer"] = 0
 
@@ -672,7 +631,6 @@ class Level3:
             proj["y"] += proj["vy"]
             proj["life"] -= 1
 
-            # animate projectile
             proj["anim_timer"] += 1
             if proj["anim_timer"] >= self.acid_anim_speed:
                 proj["anim_timer"] = 0
@@ -706,10 +664,6 @@ class Level3:
             self.blackout_active = True
         else:
             self.blackout_active = False
-
-    # ─────────────────────────────────────────────
-    # ACTIONS
-    # ─────────────────────────────────────────────
 
     def _shoot(self, boost=False):
         if self.shoot_cooldown > 0:
@@ -766,7 +720,6 @@ class Level3:
         zone_w = random.randint(90, 150)
         zone_x = random.randint(90, SCREEN_W - 330)
 
-        # Sometimes place near player, but not directly under them every time.
         if random.random() < 0.55:
             zone_x = int(clamp(self.px + random.randint(-120, 120), 70, SCREEN_W - 330))
 
@@ -979,10 +932,6 @@ class Level3:
             )
 
     def _draw_weak_point(self, surf):
-        """
-        Invisible weak point.
-        Hit detection still works, but no ugly target circle is drawn.
-        """
         return
 
     def _draw_player(self, surf):

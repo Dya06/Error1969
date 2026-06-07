@@ -227,9 +227,7 @@ class TextScene:
 
         surf.blit(img, rect)
 
-    # ─────────────────────────────────────────────
-    #  DRAW
-    # ─────────────────────────────────────────────
+
 
     def draw(self, surf):
         self._draw_background(surf)
