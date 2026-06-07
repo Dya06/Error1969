@@ -14,7 +14,8 @@ from core.particles import spawn_particles, update_particles
 # ─────────────────────────────────────────────
 class TextScene:
 
-    def __init__(self, lines, next_state=None, title="MISSION LOG", speaker="APOLLO ARCHIVE"):
+    def __init__(self, lines, next_state=None, title="MISSION LOG", speaker="APOLLO ARCHIVE",
+                 music_path=None, music_volume=0.5, line_sounds=None):
         # Clean old cutscene data so functions like intro_draw do not appear as text
         cleaned_lines = []
 
@@ -53,6 +54,20 @@ class TextScene:
         self.glitch_timer = 0
         self.glitch_offset = 0
 
+        # Background music looped for the duration of this scene
+        self.music_path = music_path
+        self.music_volume = music_volume
+        self._music_started = False
+
+        # Sounds triggered when a specific dialogue line becomes active
+        self.line_sounds = {}
+        if line_sounds:
+            for idx, path in line_sounds.items():
+                snd = load_sound(path)
+                if snd:
+                    self.line_sounds[idx] = snd
+        self._played_line_sounds = set()
+
         self.star_seed = random.randint(1000, 9999)
         self.warning_pulse = 0
         self.skip_rect = pygame.Rect(SCREEN_W - 125, SCREEN_H - 47, 100, 30)
@@ -72,7 +87,7 @@ class TextScene:
         # Mouse click skip button
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.skip_rect.collidepoint(event.pos):
-                self.done = True
+                self._finish()
                 return
 
         if event.type != pygame.KEYDOWN:
@@ -91,7 +106,13 @@ class TextScene:
 
         # S = skip cutscene
         elif event.key == pygame.K_s:
-            self.done = True
+            self._finish()
+
+    def _finish(self):
+        self.done = True
+
+        if self.music_path:
+            stop_music(fade_ms=400)
 
     # ─────────────────────────────────────────────
     #  UPDATE
@@ -100,6 +121,14 @@ class TextScene:
     def update(self):
         self.t += 1
         self.fade_in = min(255, self.fade_in + 7)
+
+        if self.music_path and not self._music_started:
+            self._music_started = True
+            play_music(self.music_path, loops=-1, volume=self.music_volume)
+
+        if self.line_index in self.line_sounds and self.line_index not in self._played_line_sounds:
+            self._played_line_sounds.add(self.line_index)
+            self.line_sounds[self.line_index].play()
 
         # Random glitch hit
         if random.random() < 0.035:
@@ -152,7 +181,7 @@ class TextScene:
         self.pause_timer = 6
 
         if self.line_index >= len(self.lines):
-            self.done = True
+            self._finish()
 
     def _wrap_text(self, text, font, max_width):
         text = str(text)
@@ -645,6 +674,18 @@ class GameOverScreen:
         self.font_small2 = pygame.font.Font(None, 22)
         self.font_tiny2 = pygame.font.Font(None, 16)
 
+        self._winning_channel = None
+
+        if self.win:
+            snd = load_sound("assets/images/audio/WinningScreen.ogg", volume=0.5)
+            if snd:
+                self._winning_channel = snd.play(loops=-1)
+
+    def _stop_winning_music(self):
+        if self._winning_channel is not None:
+            self._winning_channel.stop()
+            self._winning_channel = None
+
     def handle_event(self, event):
         if event.type != pygame.KEYDOWN:
             return
@@ -653,11 +694,13 @@ class GameOverScreen:
         if event.key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_r):
             self.choice = "retry"
             self.done = True
+            self._stop_winning_music()
 
         # Back to menu
         elif event.key == pygame.K_m:
             self.choice = "menu"
             self.done = True
+            self._stop_winning_music()
 
     def update(self):
         self.t += 1

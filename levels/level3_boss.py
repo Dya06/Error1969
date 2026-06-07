@@ -167,6 +167,15 @@ class Level3:
         self.boss_dying = False
         self.boss_death_timer = 0
 
+        # ── Sounds ────────────────────────────────────
+        self.snd_blaster = load_sound("assets/images/audio/level3/BlasterNoise.wav", volume=0.5)
+        self.snd_charge = load_sound("assets/images/audio/level3/ChargeSounds.wav", volume=0.5)
+        self.snd_boss_noise = load_sound("assets/images/audio/level3/BossNoises.mp3", volume=0.6)
+        self.boss_noise_timer = random.randint(240, 420)
+        self._charge_channel = None
+
+        play_music("assets/images/audio/level3/Level3BossMusic.wav", loops=-1, volume=0.45)
+
     # ─────────────────────────────────────────────
     # ASSETS
     # ─────────────────────────────────────────────
@@ -362,10 +371,16 @@ class Level3:
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_j:
+                if self.snd_blaster:
+                    self.snd_blaster.play()
+
                 self._shoot()
 
             elif event.key == pygame.K_r:
                 self.boost_charging = True
+
+                if self.snd_charge and self._charge_channel is None:
+                    self._charge_channel = self.snd_charge.play(loops=-1)
 
             elif event.key == pygame.K_F1:
                 self.done = True
@@ -380,6 +395,10 @@ class Level3:
                 self.boost_charging = False
                 self.boost_ready = False
                 self.boost_charge = 0
+
+                if self._charge_channel is not None:
+                    self._charge_channel.stop()
+                    self._charge_channel = None
 
     # ─────────────────────────────────────────────
     # UPDATE
@@ -430,6 +449,7 @@ class Level3:
 
         if self.player_hp <= 0:
             self.lose = True
+            stop_music(fade_ms=400)
 
         if self.boss_hp <= 0 and not self.boss_dying:
             self.boss_hp = 0
@@ -439,6 +459,7 @@ class Level3:
             self.flash_msg = "MOON EATER DESTROYED"
             self.flash_timer = 120
             self._spawn_boss_disintegration()
+            stop_music(fade_ms=600)
 
         if self.boss_dying:
             self.boss_death_timer -= 1
@@ -608,6 +629,12 @@ class Level3:
         elif random.random() < 0.004:
             self._boss_speak()
 
+        # Boss noise plays occasionally on its own cadence
+        self.boss_noise_timer -= 1
+        if self.boss_noise_timer <= 0:
+            self._play_boss_noise()
+            self.boss_noise_timer = random.randint(360, 600)
+
     def _update_boss_phase(self):
         hp_ratio = self.boss_hp / self.boss_max_hp
 
@@ -624,6 +651,7 @@ class Level3:
             self.screen_shake = 16
             self._trigger_blackout()
             self._boss_speak(force=True)
+            self._play_boss_noise()
 
     def _move_weak_point(self):
         # Brief flicker, mostly visual through phase positioning
@@ -758,6 +786,10 @@ class Level3:
 
         self.boss_voice = random.choice(lines)
         self.boss_voice_timer = 150 if force else 110
+
+    def _play_boss_noise(self):
+        if self.snd_boss_noise:
+            self.snd_boss_noise.play()
 
     def _damage_player(self, amount):
         if self.immune_timer > 0:

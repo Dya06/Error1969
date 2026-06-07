@@ -42,6 +42,35 @@ def draw_hp_bar(surf, x, y, w, h, hp, max_hp, label="HP"):
     draw_text(surf, f"{label} {int(hp)}/{int(max_hp)}", font_tiny, WHITE, x + w // 2, y + h // 2)
 
 # ─────────────────────────────────────────────
+#  AUDIO HELPERS
+# ─────────────────────────────────────────────
+def load_sound(path, volume=1.0):
+    try:
+        snd = pygame.mixer.Sound(path)
+        snd.set_volume(volume)
+        return snd
+    except Exception as e:
+        print(f"[WARNING] Failed to load sound {path}: {e}")
+        return None
+
+def play_music(path, loops=-1, volume=0.6):
+    try:
+        pygame.mixer.music.load(path)
+        pygame.mixer.music.set_volume(volume)
+        pygame.mixer.music.play(loops)
+    except Exception as e:
+        print(f"[WARNING] Failed to play music {path}: {e}")
+
+def stop_music(fade_ms=0):
+    try:
+        if fade_ms > 0:
+            pygame.mixer.music.fadeout(fade_ms)
+        else:
+            pygame.mixer.music.stop()
+    except Exception:
+        pass
+
+# ─────────────────────────────────────────────
 #  STARS BACKGROUND
 # ─────────────────────────────────────────────
 stars = [(random.randint(0, SCREEN_W), random.randint(0, SCREEN_H),

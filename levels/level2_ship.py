@@ -7,6 +7,7 @@ assets/images/monsters/failed_experiment/FE_0.png ... FE_7.png
 
 import os
 import math
+import random
 import pygame
 
 from settings import *
@@ -241,6 +242,11 @@ class Level2:
         self.zoom = 1.75   # try 1.6 to 2.0
         self.view_w = SCREEN_W / self.zoom
         self.view_h = (SCREEN_H - self.HUD_H) / self.zoom
+
+        # ── Sounds ────────────────────────────────────
+        self.snd_monster = load_sound("assets/images/audio/level2/Level2Monster.mp3")
+        self.monster_sound_timer = random.randint(240, 420)
+        play_music("assets/images/audio/level2/Level2MapMusic.mp3", loops=-1, volume=0.45)
 
     # ─────────────────────────────────────────────
     # ASSETS
@@ -709,11 +715,21 @@ class Level2:
         self._update_room_name()
         self._update_task_interaction()
         self._update_experiment()
+        self._update_monster_sound()
 
         if all(t["done"] for t in self.tasks):
             self.flash_msg = "SHIP SYSTEMS RESTORED!"
             self.flash_timer = 90
             self.done = True
+            stop_music(fade_ms=400)
+
+    def _update_monster_sound(self):
+        self.monster_sound_timer -= 1
+
+        if self.monster_sound_timer <= 0:
+            if self.snd_monster:
+                self.snd_monster.play()
+            self.monster_sound_timer = random.randint(420, 720)
 
     def _update_player(self):
         keys = pygame.key.get_pressed()
@@ -816,6 +832,7 @@ class Level2:
             spawn_particles(sx, sy, BLOOD_RED, 14, 3, 40)
             if self.player_hp <= 0:
                 self.lose = True
+                stop_music(fade_ms=400)
 
     # ─────────────────────────────────────────────
     # HELPERS
