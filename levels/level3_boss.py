@@ -167,13 +167,13 @@ class Level3:
         self.boss_dying = False
         self.boss_death_timer = 0
 
-        self.snd_blaster = load_sound("assets/images/audio/level3/BlasterNoise.wav", volume=0.5)
-        self.snd_charge = load_sound("assets/images/audio/level3/ChargeSounds.wav", volume=0.5)
-        self.snd_boss_noise = load_sound("assets/images/audio/level3/BossNoises.mp3", volume=0.6)
+        self.snd_blaster = load_sound("assets/audio/level3/BlasterNoise.wav", volume=0.5)
+        self.snd_charge = load_sound("assets/audio/level3/ChargeSounds.wav", volume=0.5)
+        self.snd_boss_noise = load_sound("assets/audio/level3/BossNoises.mp3", volume=0.6)
         self.boss_noise_timer = random.randint(240, 420)
         self._charge_channel = None
 
-        play_music("assets/images/audio/level3/Level3BossMusic.wav", loops=-1, volume=0.45)
+        play_music("assets/audio/level3/Level3BossMusic.wav", loops=-1, volume=0.45)
 
     # ─────────────────────────────────────────────
     # ASSETS

@@ -436,7 +436,7 @@ class Level1:
         self.snd_collect = self._gen_tone(880, 0.12, shape="square")
         self.snd_heartbeat = self._gen_tone(60, 0.18, shape="pulse")
         self.snd_jumpscare = self._gen_noise(0.5)
-        self.snd_jumpscare_caught = load_sound("assets/images/audio/level1/Level1JumpscareCaught.mp3")
+        self.snd_jumpscare_caught = load_sound("assets/audio/level1/Level1JumpscareCaught.mp3")
 
     def _gen_tone(self, freq, duration, shape="sine", volume=0.3):
         try:

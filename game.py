@@ -47,7 +47,7 @@ STATE_GAMEOVER = "gameover"
 STATE_TRANSITION = "transition"
 
 
-DEBUG_START_STATE = STATE_TITLE
+DEBUG_START_STATE = STATE_LEVEL2
 
 
 
@@ -164,7 +164,7 @@ def main():
                 CUTSCENE1_LINES,
                 title="CRASH LANDING",
                 speaker="SUIT DIAGNOSTIC",
-                music_path="assets/images/audio/1stDialogue.wav"
+                music_path="assets/audio/1stDialogue.wav"
             )
 
         elif s == STATE_LEVEL1:
@@ -175,7 +175,7 @@ def main():
                 CUTSCENE2_LINES,
                 title="THE SHIP",
                 speaker="MISSION LOG",
-                music_path="assets/images/audio/2ndDialogue.wav"
+                music_path="assets/audio/2ndDialogue.wav"
             )
 
         elif s == STATE_LEVEL2:
@@ -186,7 +186,7 @@ def main():
                 CUTSCENE3_LINES,
                 title="THE MOON EATER",
                 speaker="WARNING SIGNAL",
-                line_sounds={4: "assets/images/audio/BossNoises.mp3"}
+                line_sounds={4: "assets/audio/BossNoises.mp3"}
             )
 
         elif s == STATE_LEVEL3:
