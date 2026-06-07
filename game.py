@@ -18,19 +18,10 @@ from levels.level2_ship import Level2
 from levels.level3_boss import Level3
 from data.dialogue import *
 
-
-# ─────────────────────────────────────────────
-# DISPLAY
-# ─────────────────────────────────────────────
-
 screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
 pygame.display.set_caption(GAME_TITLE)
 clock = pygame.time.Clock()
 
-
-# ─────────────────────────────────────────────
-# STATES
-# ─────────────────────────────────────────────
 
 STATE_TITLE = "title"
 STATE_INTRO = "intro"
@@ -47,14 +38,12 @@ STATE_GAMEOVER = "gameover"
 STATE_TRANSITION = "transition"
 
 
-DEBUG_START_STATE = STATE_LEVEL2
+DEBUG_START_STATE = STATE_TITLE
 
 
 
-# ─────────────────────────────────────────────
+
 # CUTSCENE TEXT
-# ─────────────────────────────────────────────
-
 INTRO_LINES = [
     "JULY 20, 1969.",
     "HUMANITY HAS REACHED THE MOON. BUT NOT ALL GOES AS PLANNED...",
@@ -156,7 +145,9 @@ def main():
             scene = TextScene(
                 INTRO_LINES,
                 title="ERROR 1969",
-                speaker="BLACKBOX PLAYBACK"
+                speaker="BLACKBOX PLAYBACK",
+                music_path="assets/audio/1stDialogue.wav",
+                stop_music_on_finish=False
             )
 
         elif s == STATE_CUTSCENE1:
@@ -164,7 +155,7 @@ def main():
                 CUTSCENE1_LINES,
                 title="CRASH LANDING",
                 speaker="SUIT DIAGNOSTIC",
-                music_path="assets/audio/1stDialogue.wav"
+                stop_music_on_finish=True
             )
 
         elif s == STATE_LEVEL1:
@@ -186,7 +177,9 @@ def main():
                 CUTSCENE3_LINES,
                 title="THE MOON EATER",
                 speaker="WARNING SIGNAL",
-                line_sounds={4: "assets/audio/BossNoises.mp3"}
+                music_path="assets/audio/3rdDialoguemusic.wav",
+                line_sounds={4: "assets/audio/BossNoises.mp3"},
+                line_sound_range=(0, 2, "assets/audio/3rdDialoguefiirstbeeping.mp3")
             )
 
         elif s == STATE_LEVEL3:
@@ -228,7 +221,6 @@ def main():
     while running:
         clock.tick(FPS)
 
-        # ── EVENTS ──────────────────────────────────
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False

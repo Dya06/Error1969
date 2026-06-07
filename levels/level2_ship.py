@@ -125,6 +125,23 @@ def _tile_to_world(tc, tr):
 def _is_floor_tile(c, r):
     return 0 <= c < S2_COLS and 0 <= r < S2_ROWS and S2_MAP[r][c] == S2_FLOOR
 
+def _compute_solid_tiles():
+    blocked = set()
+    for solid in S2_SOLID_OBJECTS:
+        c0 = solid.left // S2_TS
+        c1 = (solid.right - 1) // S2_TS
+        r0 = solid.top // S2_TS
+        r1 = (solid.bottom - 1) // S2_TS
+        for r in range(r0, r1 + 1):
+            for c in range(c0, c1 + 1):
+                blocked.add((c, r))
+    return blocked
+
+S2_SOLID_TILES = _compute_solid_tiles()
+
+def _is_path_tile(c, r):
+    return _is_floor_tile(c, r) and (c, r) not in S2_SOLID_TILES
+
 def _blocked_world(x, y, radius=11):
     checks = [
         (-radius, -radius), (radius, -radius),
@@ -170,7 +187,7 @@ def _bfs_path(sx, sy, gx, gy):
             nc, nr = c + dc, r + dr
             if (nc, nr) == goal:
                 return path + [(nc, nr)]
-            if (nc, nr) not in visited and _is_floor_tile(nc, nr):
+            if (nc, nr) not in visited and _is_path_tile(nc, nr):
                 visited.add((nc, nr))
                 q.append(((nc, nr), path + [(nc, nr)]))
     return []
@@ -208,6 +225,7 @@ class Level2:
         self.exp_speed = 2.55
         self.exp_path = []
         self.path_timer = 0
+        self.exp_stuck_timer = 0
         self.exp_facing = 1
         self.fe_frames = self._load_failed_experiment_frames()
         self.fe_anim_speed = 5
@@ -245,6 +263,13 @@ class Level2:
 
         self.snd_monster = load_sound("assets/audio/level2/Level2Monster.mp3")
         self.monster_sound_timer = random.randint(240, 420)
+        self.snd_bite = load_sound("assets/audio/level2/bitesound.wav")
+        self.snd_fixing = [
+            load_sound("assets/audio/level2/fixingsound1.wav"),
+            load_sound("assets/audio/level2/fixingsound2.wav"),
+        ]
+        self._fix_channel = None
+        self._fix_sound_index = 0
         play_music("assets/audio/level2/Level2MapMusic.mp3", loops=-1, volume=0.45)
 
     # ─────────────────────────────────────────────
@@ -775,6 +800,7 @@ class Level2:
     def _update_task_interaction(self):
         keys = pygame.key.get_pressed()
         self.active_task = None
+        holding_fix = False
         for task in self.tasks:
             if task["done"]:
                 continue
@@ -782,6 +808,7 @@ class Level2:
             if d < 42:
                 self.active_task = task
                 if keys[pygame.K_e]:
+                    holding_fix = True
                     task["progress"] = min(100, task["progress"] + 0.55)
                     if task["progress"] >= 100:
                         task["done"] = True
@@ -792,6 +819,19 @@ class Level2:
                         repaired = self._repaired_count()
                         self.exp_speed = 2.55 + repaired * 0.22
                 break
+        self._update_fixing_sound(holding_fix)
+
+    def _update_fixing_sound(self, holding):
+        if holding:
+            if self._fix_channel is None or not self._fix_channel.get_busy():
+                snd = self.snd_fixing[self._fix_sound_index]
+                if snd:
+                    self._fix_channel = snd.play()
+                self._fix_sound_index = 1 - self._fix_sound_index
+        elif self._fix_channel is not None:
+            self._fix_channel.stop()
+            self._fix_channel = None
+            self._fix_sound_index = 0
 
     def _update_experiment(self):
         self.path_timer += 1
@@ -813,8 +853,19 @@ class Level2:
                 move_x = (dx / dist) * self.exp_speed
                 move_y = (dy / dist) * self.exp_speed
 
-                self.ex += move_x
-                self.ey += move_y
+                new_x, new_y = self._move(self.ex, self.ey, move_x, move_y, radius=12)
+                progress = math.hypot(new_x - self.ex, new_y - self.ey)
+                self.ex, self.ey = new_x, new_y
+
+                if progress < 0.3:
+                    self.exp_stuck_timer += 1
+                    if self.exp_stuck_timer > 6:
+                        self.exp_stuck_timer = 0
+                        if self.exp_path:
+                            self.exp_path.pop(0)
+                        self.path_timer = refresh
+                else:
+                    self.exp_stuck_timer = 0
 
                 # Face based on actual movement direction
                 if abs(move_x) > 0.1:
@@ -822,6 +873,8 @@ class Level2:
 
         dist_to_player = math.hypot(self.px - self.ex, self.py - self.ey)
         if dist_to_player < 34 and self.attack_cooldown <= 0:
+            if self.snd_bite:
+                self.snd_bite.play()
             self.player_hp -= 4
             self.immune_timer = 75
             self.attack_cooldown = 80
@@ -832,6 +885,8 @@ class Level2:
             if self.player_hp <= 0:
                 self.lose = True
                 stop_music(fade_ms=400)
+                if self.snd_bite:
+                    self.snd_bite.stop()
 
     # ─────────────────────────────────────────────
     # HELPERS

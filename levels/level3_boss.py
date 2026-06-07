@@ -166,10 +166,15 @@ class Level3:
         self.death_particles = []
         self.boss_dying = False
         self.boss_death_timer = 0
+        self.boss_fade_duration = 200
 
         self.snd_blaster = load_sound("assets/audio/level3/BlasterNoise.wav", volume=0.5)
         self.snd_charge = load_sound("assets/audio/level3/ChargeSounds.wav", volume=0.5)
         self.snd_boss_noise = load_sound("assets/audio/level3/BossNoises.mp3", volume=0.6)
+        self.snd_boss_impact = load_sound("assets/audio/level3/level3bossimpact.wav", volume=0.6)
+        self.snd_boss_dying = load_sound("assets/audio/level3/level3bossdyingsound.mp3", volume=0.7)
+        if self.snd_boss_dying:
+            self.boss_fade_duration = int(self.snd_boss_dying.get_length() * FPS)
         self.boss_noise_timer = random.randint(240, 420)
         self._charge_channel = None
 
@@ -453,12 +458,14 @@ class Level3:
         if self.boss_hp <= 0 and not self.boss_dying:
             self.boss_hp = 0
             self.boss_dying = True
-            self.boss_death_timer = 180
+            self.boss_death_timer = self.boss_fade_duration
             self.screen_shake = 22
             self.flash_msg = "MOON EATER DESTROYED"
             self.flash_timer = 120
             self._spawn_boss_disintegration()
             stop_music(fade_ms=600)
+            if self.snd_boss_dying:
+                self.snd_boss_dying.play()
 
         if self.boss_dying:
             self.boss_death_timer -= 1
@@ -576,6 +583,9 @@ class Level3:
                     hit = True
 
             if hit:
+                if self.snd_boss_impact:
+                    self.snd_boss_impact.play()
+
                 if bullet in self.bullets:
                     self.bullets.remove(bullet)
 
@@ -859,12 +869,12 @@ class Level3:
 
         self._draw_environment_effects(surf)
         self._draw_corruption_zones(surf)
-        if not self.boss_dying:
-            self._draw_boss(surf)
-            self._draw_weak_point(surf)
-        else:
+        self._draw_boss(surf)
+        if self.boss_dying:
             for p in self.death_particles:
                 p.draw(surf)
+        else:
+            self._draw_weak_point(surf)
         self._draw_player(surf)
         self._draw_bullets(surf)
         self._draw_enemy_projectiles(surf)
@@ -894,10 +904,16 @@ class Level3:
         bx = int(self.boss_x)
         by = int(self.boss_y)
 
+        fade = 1.0
+        if self.boss_dying:
+            fade = clamp(self.boss_death_timer / self.boss_fade_duration, 0, 1)
+            if fade <= 0:
+                return
+
         # Organic aura behind sprite
         aura_size = 280
         aura = pygame.Surface((aura_size, aura_size), pygame.SRCALPHA)
-        pulse = int(45 + 25 * math.sin(self.t * 0.08))
+        pulse = int((45 + 25 * math.sin(self.t * 0.08)) * fade)
 
         pygame.draw.circle(
             aura,
@@ -908,7 +924,7 @@ class Level3:
 
         pygame.draw.circle(
             aura,
-            (150, 20, 30, 30),
+            (150, 20, 30, int(30 * fade)),
             (aura_size // 2, aura_size // 2),
             aura_size // 2 - 55
         )
@@ -924,8 +940,13 @@ class Level3:
         # If it faces right, uncomment the flip below.
         # img = pygame.transform.flip(img, True, False)
 
+        img.set_alpha(int(255 * fade))
         rect = img.get_rect(center=(bx, by))
         surf.blit(img, rect)
+        img.set_alpha(255)
+
+        if self.boss_dying:
+            return
 
         # Phase corruption outline / danger flicker
         if self.boss_phase >= 2 and self.t % 12 < 6:

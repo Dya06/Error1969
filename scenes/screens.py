@@ -9,13 +9,13 @@ from utils import *
 from graphics.sprites import draw_ship
 from core.particles import spawn_particles, update_particles
 
-# ─────────────────────────────────────────────
-#  CUTSCENE / DIALOGUE SYSTEM
-# ─────────────────────────────────────────────
+_gameover_sfx_channel = None
+
 class TextScene:
 
     def __init__(self, lines, next_state=None, title="MISSION LOG", speaker="APOLLO ARCHIVE",
-                 music_path=None, music_volume=0.5, line_sounds=None):
+                 music_path=None, music_volume=0.5, stop_music_on_finish=None,
+                 line_sounds=None, line_sound_range=None):
         # Clean old cutscene data so functions like intro_draw do not appear as text
         cleaned_lines = []
 
@@ -57,6 +57,7 @@ class TextScene:
         self.music_path = music_path
         self.music_volume = music_volume
         self._music_started = False
+        self.stop_music_on_finish = (music_path is not None) if stop_music_on_finish is None else stop_music_on_finish
 
         self.line_sounds = {}
         if line_sounds:
@@ -65,6 +66,15 @@ class TextScene:
                 if snd:
                     self.line_sounds[idx] = snd
         self._played_line_sounds = set()
+
+        self.range_sound = None
+        self.range_start = self.range_end = -1
+        self._range_channel = None
+        if line_sound_range:
+            start_idx, end_idx, path = line_sound_range
+            self.range_sound = load_sound(path)
+            self.range_start = start_idx
+            self.range_end = end_idx
 
         self.star_seed = random.randint(1000, 9999)
         self.warning_pulse = 0
@@ -76,10 +86,6 @@ class TextScene:
         self.font_body = pygame.font.Font(None, 30)
         self.font_hint = pygame.font.Font(None, 20)
         self.font_small = pygame.font.Font(None, 18)
-
-    # ─────────────────────────────────────────────
-    #  INPUT
-    # ─────────────────────────────────────────────
 
     def handle_event(self, event):
         # Mouse click skip button
@@ -109,12 +115,13 @@ class TextScene:
     def _finish(self):
         self.done = True
 
-        if self.music_path:
+        if self.stop_music_on_finish:
             stop_music(fade_ms=400)
 
-    # ─────────────────────────────────────────────
-    #  UPDATE
-    # ─────────────────────────────────────────────
+        if self._range_channel is not None:
+            self._range_channel.stop()
+            self._range_channel = None
+
 
     def update(self):
         self.t += 1
@@ -127,6 +134,13 @@ class TextScene:
         if self.line_index in self.line_sounds and self.line_index not in self._played_line_sounds:
             self._played_line_sounds.add(self.line_index)
             self.line_sounds[self.line_index].play()
+
+        if self.range_sound:
+            if self.line_index == self.range_start and self._range_channel is None:
+                self._range_channel = self.range_sound.play(loops=-1)
+            elif self.line_index >= self.range_end and self._range_channel is not None:
+                self._range_channel.stop()
+                self._range_channel = None
 
         # Random glitch hit
         if random.random() < 0.035:
@@ -153,9 +167,6 @@ class TextScene:
                 self.full_line_visible = True
                 self.pause_timer = 10
 
-    # ─────────────────────────────────────────────
-    #  HELPERS
-    # ─────────────────────────────────────────────
 
     def _current_line(self):
         if not self.lines:
@@ -444,15 +455,30 @@ class TitleScreen:
         self.glitch_timer = 0
         self.glitch_offset = 0
 
+        self.starting = False
+        self.start_timer = 0
+
         self.bg = pygame.image.load("assets/images/MENU.png").convert()
         self.bg = pygame.transform.scale(self.bg, (SCREEN_W, SCREEN_H))
 
+        play_music("assets/audio/TITLEMUSIC.mp3", loops=-1, volume=0.5)
+
     def handle_event(self, event):
+        if self.starting:
+            return
+
         if event.type == pygame.KEYDOWN and event.key in (pygame.K_SPACE, pygame.K_RETURN):
-            self.done = True
+            self.starting = True
+            self.start_timer = 40
+            stop_music(fade_ms=600)
 
     def update(self):
         self.t += 1
+
+        if self.starting:
+            self.start_timer -= 1
+            if self.start_timer <= 0:
+                self.done = True
 
         if random.random() < 0.08:
             self.glitch_timer = random.randint(3, 8)
@@ -596,6 +622,13 @@ class DeathCutscene:
         self.font_death = pygame.font.Font(None, 54)
         self.font_small = pygame.font.Font(None, 22)
 
+        global _gameover_sfx_channel
+
+        play_music("assets/audio/gameovermusic.wav", loops=-1, volume=0.5)
+        snd_effect = load_sound("assets/audio/gameoversoundeffect.mp3", volume=0.6)
+        if snd_effect:
+            _gameover_sfx_channel = snd_effect.play()
+
     def handle_event(self, event):
         # Optional: allow skipping after the text appears
         if event.type == pygame.KEYDOWN:
@@ -684,6 +717,12 @@ class GameOverScreen:
             self._winning_channel.stop()
             self._winning_channel = None
 
+    def _stop_gameover_sfx(self):
+        global _gameover_sfx_channel
+        if _gameover_sfx_channel is not None:
+            _gameover_sfx_channel.stop()
+            _gameover_sfx_channel = None
+
     def handle_event(self, event):
         if event.type != pygame.KEYDOWN:
             return
@@ -693,12 +732,18 @@ class GameOverScreen:
             self.choice = "retry"
             self.done = True
             self._stop_winning_music()
+            if not self.win:
+                stop_music(fade_ms=300)
+                self._stop_gameover_sfx()
 
         # Back to menu
         elif event.key == pygame.K_m:
             self.choice = "menu"
             self.done = True
             self._stop_winning_music()
+            if not self.win:
+                stop_music(fade_ms=300)
+                self._stop_gameover_sfx()
 
     def update(self):
         self.t += 1
