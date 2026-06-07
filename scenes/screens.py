@@ -675,7 +675,7 @@ class GameOverScreen:
         self._winning_channel = None
 
         if self.win:
-            snd = load_sound("assets/images/audio/WinningScreen.ogg", volume=0.5)
+            snd = load_sound("assets/audio/WinningScreen.ogg", volume=0.5)
             if snd:
                 self._winning_channel = snd.play(loops=-1)
 

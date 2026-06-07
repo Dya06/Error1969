@@ -243,9 +243,9 @@ class Level2:
         self.view_w = SCREEN_W / self.zoom
         self.view_h = (SCREEN_H - self.HUD_H) / self.zoom
 
-        self.snd_monster = load_sound("assets/images/audio/level2/Level2Monster.mp3")
+        self.snd_monster = load_sound("assets/audio/level2/Level2Monster.mp3")
         self.monster_sound_timer = random.randint(240, 420)
-        play_music("assets/images/audio/level2/Level2MapMusic.mp3", loops=-1, volume=0.45)
+        play_music("assets/audio/level2/Level2MapMusic.mp3", loops=-1, volume=0.45)
 
     # ─────────────────────────────────────────────
     # ASSETS
