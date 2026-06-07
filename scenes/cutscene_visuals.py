@@ -1,5 +1,3 @@
-"""Small drawing callbacks used by TextScene cutscenes."""
-
 from settings import *
 from graphics.sprites import *
 

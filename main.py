@@ -1,5 +1,3 @@
-"""Entry point for ERROR 1969. Run this file."""
-
 import pygame
 
 pygame.init()

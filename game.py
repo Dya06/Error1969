@@ -20,6 +20,36 @@ from data.dialogue import *
 
 
 # ─────────────────────────────────────────────
+# AUDIO
+# ─────────────────────────────────────────────
+
+MENU_MUSIC = "assets/images/audio/menu.mp3"
+
+current_music = None
+
+
+def play_music(path, volume=50):
+    global current_music
+
+    if current_music == path:
+        return
+
+    try:
+        pygame.mixer.music.stop()
+        pygame.mixer.music.load(path)
+        pygame.mixer.music.set_volume(volume)
+        pygame.mixer.music.play(-1)  # -1 means loop forever
+        current_music = path
+    except Exception as e:
+        print(f"[AUDIO WARNING] Could not play music: {path} -> {e}")
+
+
+def stop_music():
+    global current_music
+    pygame.mixer.music.stop()
+    current_music = None
+
+# ─────────────────────────────────────────────
 # DISPLAY
 # ─────────────────────────────────────────────
 
@@ -47,7 +77,7 @@ STATE_GAMEOVER = "gameover"
 STATE_TRANSITION = "transition"
 
 
-DEBUG_START_STATE = STATE_TITLE
+DEBUG_START_STATE = STATE_LEVEL3
 
 
 
@@ -150,9 +180,11 @@ def main():
         death_started = False
 
         if s == STATE_TITLE:
+            play_music(MENU_MUSIC, volume=0.45)
             scene = TitleScreen()
 
         elif s == STATE_INTRO:
+            stop_music()
             scene = TextScene(
                 INTRO_LINES,
                 title="ERROR 1969",
