@@ -842,62 +842,273 @@ class GameOverScreen:
         )
 
     def _draw_win_screen(self, surf):
-        surf.fill((3, 6, 14))
-        draw_stars(surf, self.t / 60)
+        # ─────────────────────────────────────────────
+        # CORRUPTED VICTORY SCREEN
+        # ─────────────────────────────────────────────
 
-        ship_x = int(SCREEN_W * 0.1 + (SCREEN_W * 0.8) * min(1, self.t / 200))
-        ship_y = int(SCREEN_H // 2 - self.t * 0.5)
+        surf.fill((1, 2, 8))
 
-        draw_ship(
+        # Star field
+        rng = random.Random(1969)
+        for i in range(160):
+            x = rng.randint(0, SCREEN_W)
+            y = rng.randint(0, SCREEN_H)
+            flicker = int(40 + 25 * math.sin(self.t * 0.025 + i))
+            shade = clamp(rng.randint(90, 180) + flicker, 60, 230)
+            size = rng.choice([1, 1, 1, 2])
+            pygame.draw.rect(surf, (shade, shade, shade), (x, y, size, size))
+
+        # Slow red infection vignette
+        red_alpha = clamp(int(self.t * 0.35), 0, 115)
+        vignette = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+
+        for r in range(620, 80, -35):
+            alpha = int((620 - r) * 0.22)
+            pygame.draw.circle(
+                vignette,
+                (70, 0, 8, min(red_alpha, alpha)),
+                (SCREEN_W // 2, SCREEN_H // 2),
+                r,
+                30
+            )
+
+        surf.blit(vignette, (0, 0))
+
+        # Occasional full-screen glitch strips
+        if self.t % 95 < 7:
+            for _ in range(8):
+                y = random.randint(40, SCREEN_H - 90)
+                h = random.randint(2, 8)
+                x_off = random.randint(-25, 25)
+
+                strip = pygame.Surface((SCREEN_W, h), pygame.SRCALPHA)
+                strip.fill(random.choice([
+                    (255, 40, 40, 45),
+                    (0, 220, 220, 35),
+                    (255, 255, 255, 25),
+                ]))
+                surf.blit(strip, (x_off, y))
+
+        # Small warning top corner
+        warn_col = (255, 40, 35) if self.t % 40 < 22 else (90, 10, 10)
+        self._render_text(
             surf,
-            ship_x,
-            clamp(ship_y, 50, SCREEN_H - 50),
-            self.t,
-            False
-        )
-
-        spawn_particles(
-            ship_x,
-            clamp(ship_y + 12, 50, SCREEN_H - 50),
-            ORANGE,
-            2,
-            1.5,
+            "[ SYSTEMS CORRUPTED ]",
+            self.font_tiny2,
+            warn_col,
             20,
-            3
+            22,
+            center=False
         )
 
-        update_particles(surf)
+        # Corrupted rocket icon top-right
+        self._draw_corrupted_rocket_icon(surf, SCREEN_W - 70, 58)
 
-        glow = int(200 + 55 * math.sin(self.t * 0.05))
+        # Main title bait-and-switch
+        glitching = self.t > 120 and self.t % 110 < 24
+
+        if glitching:
+            title = "MIS SION  C OMPROMISED"
+            title_col = (255, 45, 35)
+
+            # Chromatic glitch shadows
+            self._render_text(
+                surf,
+                title,
+                self.font_big,
+                (0, 210, 220),
+                SCREEN_W // 2 - 4,
+                170,
+                alpha=120
+            )
+            self._render_text(
+                surf,
+                title,
+                self.font_big,
+                (255, 0, 50),
+                SCREEN_W // 2 + 5,
+                170,
+                alpha=160
+            )
+
+        else:
+            title = "MISSION COMPLETE"
+            title_col = (190, 195, 105)
 
         self._render_text(
             surf,
-            "MISSION COMPLETE",
+            title,
             self.font_big,
-            (glow, glow, 90),
+            title_col,
             SCREEN_W // 2,
-            180
+            170
         )
+
+        # Subtitle changes after a short delay
+        if self.t < 150:
+            subtitle = "YOU MADE IT HOME"
+            subtitle_col = (255, 220, 0)
+        else:
+            subtitle = "YOU THINK YOU MADE IT HOME"
+            subtitle_col = (230, 70, 55)
 
         self._render_text(
             surf,
-            "YOU MADE IT HOME",
+            subtitle,
             self.font_title2,
-            GOLD,
+            subtitle_col,
             SCREEN_W // 2,
-            260
+            250
         )
+
+        # Horror flavor text
+        flavor_lines = [
+            "The moon is quiet again.",
+            "It followed you.",
+        ]
+
+        if self.t > 220:
+            flavor_lines = [
+                "Vitals normal.",
+                "Unknown organism detected in hull.",
+            ]
 
         self._render_text(
             surf,
-            "The moon is quiet again. For now.",
+            flavor_lines[0],
             self.font_med2,
-            CYAN,
+            (150, 50, 45),
             SCREEN_W // 2,
             320
         )
 
-        self._draw_action_buttons(surf)
+        self._render_text(
+            surf,
+            flavor_lines[1],
+            self.font_med2,
+            (210, 45, 40) if self.t % 50 < 30 else (90, 20, 20),
+            SCREEN_W // 2,
+            350
+        )
+
+        # Buttons
+        self._draw_corrupted_action_buttons(surf)
+
+        # Bottom ticker
+        self._draw_blackbox_ticker(surf)
+
+        # CRT scanlines
+        scan = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        for y in range(0, SCREEN_H, 4):
+            pygame.draw.line(scan, (255, 255, 255, 9), (0, y), (SCREEN_W, y))
+        surf.blit(scan, (0, 0))
+
+    def _draw_blackbox_ticker(self, surf):
+        ticker_h = 26
+        y = SCREEN_H - ticker_h
+
+        pygame.draw.rect(surf, (5, 0, 3), (0, y, SCREEN_W, ticker_h))
+        pygame.draw.line(surf, (120, 20, 18), (0, y), (SCREEN_W, y), 1)
+
+        ticker_text = (
+            "ERROR 1969 // BLACK BOX TERMINATED // INFESTATION DETECTED // "
+            "BIOMASS OVERRIDE // RETURN VECTOR COMPROMISED // "
+        )
+
+        text_img = self.font_tiny2.render(ticker_text, True, (220, 55, 35))
+        text_w = text_img.get_width()
+
+        scroll_x = -((self.t * 2) % text_w)
+
+        for i in range(-1, SCREEN_W // text_w + 3):
+            surf.blit(text_img, (scroll_x + i * text_w, y + 7))
+
+
+    def _draw_corrupted_action_buttons(self, surf):
+        retry_rect = pygame.Rect(SCREEN_W // 2 - 235, 485, 205, 42)
+        menu_rect = pygame.Rect(SCREEN_W // 2 + 30, 485, 205, 42)
+
+        mouse_pos = pygame.mouse.get_pos()
+
+        for rect, label, base_col, border_col in [
+            (retry_rect, "SPACE TO RETRY", (25, 8, 10), (180, 45, 55)),
+            (menu_rect, "M FOR MAIN MENU", (8, 14, 25), (85, 120, 160)),
+        ]:
+            hover = rect.collidepoint(mouse_pos)
+
+            fill = (
+                min(base_col[0] + 25, 255),
+                min(base_col[1] + 12, 255),
+                min(base_col[2] + 12, 255),
+            ) if hover else base_col
+
+            # Sharp pixel rectangle, no rounded corners
+            pygame.draw.rect(surf, fill, rect)
+            pygame.draw.rect(surf, border_col, rect, 2)
+
+            # Inner pixel border
+            pygame.draw.rect(surf, (0, 0, 0), rect.inflate(-8, -8), 1)
+
+            # Tiny glitch line on hover
+            if hover and self.t % 16 < 8:
+                pygame.draw.line(
+                    surf,
+                    (255, 80, 80),
+                    (rect.x + 8, rect.y + random.randint(8, rect.h - 8)),
+                    (rect.right - 8, rect.y + random.randint(8, rect.h - 8)),
+                    1
+                )
+
+            self._render_text(
+                surf,
+                label,
+                self.font_small2,
+                (235, 210, 210),
+                rect.centerx,
+                rect.centery
+            )
+
+
+    def _draw_corrupted_rocket_icon(self, surf, x, y):
+        # Pixel-style small rocket
+        body_col = (220, 220, 210)
+        flame_col = (255, 90, 25)
+        corrupt_col = (120, 0, 80)
+
+        # Rocket body
+        points = [
+            (x, y - 34),
+            (x - 16, y + 20),
+            (x, y + 10),
+            (x + 16, y + 20),
+        ]
+        pygame.draw.polygon(surf, body_col, points)
+        pygame.draw.polygon(surf, (40, 40, 45), points, 2)
+
+        # Window
+        pygame.draw.circle(surf, (0, 220, 220), (x, y - 8), 7)
+
+        # Flame
+        pygame.draw.polygon(
+            surf,
+            flame_col,
+            [(x - 7, y + 18), (x, y + 34), (x + 7, y + 18)]
+        )
+
+        # Corruption pixels / tendrils
+        for i in range(7):
+            ox = random.randint(-22, 20)
+            oy = random.randint(-28, 18)
+            pygame.draw.rect(
+                surf,
+                corrupt_col,
+                (x + ox, y + oy, random.randint(2, 4), random.randint(2, 4))
+            )
+
+        # Small tendril lines
+        if self.t % 20 < 12:
+            pygame.draw.line(surf, corrupt_col, (x - 10, y + 4), (x - 28, y + 18), 2)
+            pygame.draw.line(surf, corrupt_col, (x + 8, y - 2), (x + 25, y - 14), 2)
 
     def _draw_fade(self, surf):
         if self.fade_in >= 255:

@@ -18,8 +18,17 @@ BG_PATHS = [
     "assets/images/backgrounds/LVL3.jpg",
 ]
 
-ASTRO_FRAME_DIR = "assets/images/monsters/astronaut"
-ASTRO_FRAME_COUNT = 10
+ASTRO3_FRAME_DIR = "assets/images/monsters/astro3"
+
+ASTRO_FRAME_COUNT = 5       # ASTRO0 - ASTRO4
+ASTRO_SHOOT_COUNT = 4       # ASTROS0 - ASTROS3
+BULLET_FRAME_COUNT = 9      # BULLET1 - BULLET9
+
+ME_FRAME_DIR = "assets/images/monsters/moon_eater"
+ME_FRAME_COUNT = 8
+
+ACID_FRAME_DIR = ME_FRAME_DIR
+ACID_FRAME_COUNT = 8
 
 
 # ─────────────────────────────────────────────
@@ -27,9 +36,11 @@ ASTRO_FRAME_COUNT = 10
 # ─────────────────────────────────────────────
 
 GROUND_Y = SCREEN_H - 105
+BOTTOM_HUD_H = 82
+PLAY_AREA_BOTTOM = SCREEN_H - BOTTOM_HUD_H
 
-PLAYER_W = 42
-PLAYER_H = 52
+PLAYER_W = 100
+PLAYER_H = 100
 PLAYER_SPEED = 4.2
 PLAYER_JUMP = -12.5
 GRAVITY = 0.65
@@ -44,6 +55,32 @@ BOOST_CHARGE_TIME = 90   # hold R for about 1.5 seconds at 60 FPS
 BOSS_MAX_HP = 50
 PLAYER_MAX_HP = 30
 
+
+class DisintegrationParticle:
+    def __init__(self, x, y, color=(255, 80, 30), block_size=6):
+        self.x = x
+        self.y = y
+        self.dx = random.uniform(-3.5, 3.5)
+        self.dy = random.uniform(-4.5, 2.0)
+        self.life = random.randint(45, 95)
+        self.max_life = self.life
+        self.block_size = block_size
+        self.color = color
+
+    def update(self):
+        self.x += self.dx
+        self.y += self.dy
+        self.dy += 0.12
+        self.life -= 1
+
+    def draw(self, surf):
+        if self.life <= 0:
+            return
+
+        alpha = int(255 * (self.life / self.max_life))
+        particle_surf = pygame.Surface((self.block_size, self.block_size), pygame.SRCALPHA)
+        particle_surf.fill((*self.color, alpha))
+        surf.blit(particle_surf, (int(self.x), int(self.y)))
 
 class Level3:
     def __init__(self):
@@ -66,9 +103,15 @@ class Level3:
         self.immune_timer = 0
 
         # Astronaut sprite frames
-        self.astro_frames = self._load_astronaut_frames()
+        self.astro_frames = self._load_astro3_frames()
+        self.astro_shoot_frames = self._load_astro3_shoot_frames()
+        self.bullet_frames = self._load_bullet_frames()
+
         self.player_frame = 0
         self.astro_anim_speed = 6
+
+        self.shooting_timer = 0
+        self.shooting_anim_speed = 4
 
         # Weapon
         self.bullets = []
@@ -90,6 +133,10 @@ class Level3:
         self.boss_attack_timer = 0
         self.boss_voice_timer = 0
         self.boss_voice = ""
+        self.me_frames = self._load_moon_eater_frames()
+        self.me_anim_speed = 7
+        self.acid_frames = self._load_acid_frames()
+        self.acid_anim_speed = 4
 
         # Weak point
         self.weak_point = {
@@ -107,13 +154,18 @@ class Level3:
         self.blackout_active = False
 
         # Screen effects
-        self.screen_shake = 0
+        self.screen_shake = 22
+        self.intro_shake_timer = 90
         self.flash_msg = ""
         self.flash_timer = 0
         self.warning_timer = 120
 
         # Intro reveal
         self.reveal_timer = 120
+
+        self.death_particles = []
+        self.boss_dying = False
+        self.boss_death_timer = 0
 
     # ─────────────────────────────────────────────
     # ASSETS
@@ -138,7 +190,76 @@ class Level3:
 
         return surf
 
+    def _load_moon_eater_frames(self):
+        frames = []
+
+        for i in range(ME_FRAME_COUNT):
+            path = os.path.join(ME_FRAME_DIR, f"ME{i}.png")
+
+            if not os.path.exists(path):
+                print(f"[WARNING] Missing Moon Eater frame: {path}")
+                frames.append(self._make_missing_moon_eater_frame(i))
+                continue
+
+            img = pygame.image.load(path).convert_alpha()
+
+            # Adjust this size depending on your sprite.
+            # Since Moon Eater is a boss, it should be large.
+            img = pygame.transform.scale(img, (210, 260))
+
+            frames.append(img)
+
+        return frames
+
+    def _load_acid_frames(self):
+        frames = []
+
+        for i in range(ACID_FRAME_COUNT):
+            path = os.path.join(ACID_FRAME_DIR, f"acid{i}.png")
+
+            if not os.path.exists(path):
+                print(f"[WARNING] Missing acid frame: {path}")
+                frames.append(self._make_missing_acid_frame(i))
+                continue
+
+            img = pygame.image.load(path).convert_alpha()
+            img = pygame.transform.scale(img, (46, 46))
+            frames.append(img)
+
+        return frames
+
+
+    def _make_missing_acid_frame(self, i):
+        """Fallback if acid frames are missing."""
+        surf = pygame.Surface((46, 46), pygame.SRCALPHA)
+
+        draw_text(surf, str(i), font_tiny, RED, 23, 37)
+
+        return surf
+    
+
+    def _make_missing_moon_eater_frame(self, i):
+        surf = pygame.Surface((210, 260), pygame.SRCALPHA)
+
+        pygame.draw.ellipse(surf, (10, 0, 20), (35, 20, 140, 220))
+        pygame.draw.ellipse(surf, (90, 0, 100), (35, 20, 140, 220), 3)
+
+        draw_text(surf, f"ME{i}", font_tiny, RED, 105, 235)
+        return surf
+
+    def _make_missing_astro_frame(self, i):
+        surf = pygame.Surface((PLAYER_W, PLAYER_H), pygame.SRCALPHA)
+
+        pygame.draw.rect(surf, (210, 210, 210), (13, 20, 18, 24))
+        pygame.draw.rect(surf, (20, 70, 95), (16, 10, 12, 7))
+        pygame.draw.line(surf, (230, 230, 230), (30, 28), (42, 25), 3)
+        pygame.draw.rect(surf, (255, 90, 30), (40, 23, 8, 4))
+
+        draw_text(surf, str(i), font_tiny, RED, PLAYER_W // 2, PLAYER_H - 8)
+        return surf
+
     def _load_astronaut_frames(self):
+        """Load astronaut PNG frames."""
         frames = []
 
         for i in range(ASTRO_FRAME_COUNT):
@@ -155,18 +276,85 @@ class Level3:
 
         return frames
 
+    def _load_astro3_frames(self):
+        frames = []
+
+        for i in range(ASTRO_FRAME_COUNT):
+            path = os.path.join(ASTRO3_FRAME_DIR, f"ASTROF{i}.png")
+
+            if not os.path.exists(path):
+                print(f"[WARNING] Missing astronaut frame: {path}")
+                frames.append(self._make_missing_astro_frame(i))
+                continue
+
+            img = pygame.image.load(path).convert_alpha()
+
+            # Adjust size if needed
+            img = pygame.transform.scale(img, (PLAYER_W, PLAYER_H))
+            frames.append(img)
+
+        return frames
+
+
+    def _load_astro3_shoot_frames(self):
+        """Load shooting astronaut frames: ASTROS0.png - ASTROS3.png"""
+        frames = []
+
+        for i in range(ASTRO_SHOOT_COUNT):
+            path = os.path.join(ASTRO3_FRAME_DIR, f"ASTROS{i}.png")
+
+            if not os.path.exists(path):
+                print(f"[WARNING] Missing astronaut shooting frame: {path}")
+                frames.append(self._make_missing_astro_frame(i))
+                continue
+
+            img = pygame.image.load(path).convert_alpha()
+
+            # Same size as normal astronaut
+            img = pygame.transform.scale(img, (PLAYER_W, PLAYER_H))
+            frames.append(img)
+
+        return frames
+
+
+    def _load_bullet_frames(self):
+        """Load bullet animation frames: BULLET1.png - BULLET9.png"""
+        frames = []
+
+        for i in range(1, BULLET_FRAME_COUNT + 1):
+            path = os.path.join(ASTRO3_FRAME_DIR, f"BULLET{i}.png")
+
+            if not os.path.exists(path):
+                print(f"[WARNING] Missing bullet frame: {path}")
+                frames.append(self._make_missing_bullet_frame(i))
+                continue
+
+            img = pygame.image.load(path).convert_alpha()
+            img = pygame.transform.scale(img, (44, 22))
+            frames.append(img)
+
+        return frames
+
+
+    def _make_missing_bullet_frame(self, i):
+        """Fallback bullet if PNG missing."""
+        surf = pygame.Surface((44, 22), pygame.SRCALPHA)
+        pygame.draw.rect(surf, (255, 220, 80), (5, 8, 28, 6))
+        pygame.draw.rect(surf, (255, 90, 30), (30, 6, 10, 10))
+        draw_text(surf, str(i), font_tiny, RED, 22, 12)
+        return surf
+
     def _make_missing_astro_frame(self, i):
+        """Fallback only if astronaut PNG files are missing."""
         surf = pygame.Surface((PLAYER_W, PLAYER_H), pygame.SRCALPHA)
 
         pygame.draw.rect(surf, (210, 210, 210), (13, 20, 18, 24))
-        pygame.draw.circle(surf, (220, 220, 220), (22, 14), 11)
         pygame.draw.rect(surf, (20, 70, 95), (16, 10, 12, 7))
         pygame.draw.line(surf, (230, 230, 230), (30, 28), (42, 25), 3)
         pygame.draw.rect(surf, (255, 90, 30), (40, 23, 8, 4))
 
         draw_text(surf, str(i), font_tiny, RED, PLAYER_W // 2, PLAYER_H - 8)
         return surf
-
     # ─────────────────────────────────────────────
     # INPUT
     # ─────────────────────────────────────────────
@@ -220,7 +408,16 @@ class Level3:
         if self.shoot_cooldown > 0:
             self.shoot_cooldown -= 1
 
-        if self.screen_shake > 0:
+        if self.shooting_timer > 0:
+            self.shooting_timer -= 1
+
+        if self.intro_shake_timer > 0:
+            self.intro_shake_timer -= 1
+
+            # Strong at first, then slowly settles
+            self.screen_shake = max(0, int(22 * (self.intro_shake_timer / 90)))
+
+        elif self.screen_shake > 0:
             self.screen_shake -= 1
 
         self._update_player()
@@ -234,26 +431,41 @@ class Level3:
         if self.player_hp <= 0:
             self.lose = True
 
-        if self.boss_hp <= 0:
+        if self.boss_hp <= 0 and not self.boss_dying:
             self.boss_hp = 0
+            self.boss_dying = True
+            self.boss_death_timer = 180
+            self.screen_shake = 22
             self.flash_msg = "MOON EATER DESTROYED"
             self.flash_timer = 120
-            self.done = True
+            self._spawn_boss_disintegration()
+
+        if self.boss_dying:
+            self.boss_death_timer -= 1
+
+            for p in self.death_particles:
+                p.update()
+
+            if self.boss_death_timer <= 0:
+                self.done = True
+
+            return
+        
 
     def _update_player(self):
         keys = pygame.key.get_pressed()
 
         self.vx = 0
 
-        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+        if keys[pygame.K_a]:
             self.vx = -PLAYER_SPEED
             self.facing = -1
 
-        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+        if keys[pygame.K_d]:
             self.vx = PLAYER_SPEED
             self.facing = 1
 
-        if (keys[pygame.K_SPACE] or keys[pygame.K_w] or keys[pygame.K_UP]) and self.on_ground:
+        if (keys[pygame.K_w] or keys[pygame.K_SPACE]) and self.on_ground:
             self.vy = PLAYER_JUMP
             self.on_ground = False
 
@@ -270,15 +482,6 @@ class Level3:
             self.py = GROUND_Y
             self.vy = 0
             self.on_ground = True
-
-        # Corruption slow/damage
-        player_rect = self._player_rect()
-
-        for zone in self.corruption_zones:
-            if player_rect.colliderect(zone["rect"]):
-                if self.t % 35 == 0:
-                    self._damage_player(1)
-                self.px -= self.vx * 0.35
 
     def _update_boost_charge(self):
         if not self.boost_charging:
@@ -300,6 +503,11 @@ class Level3:
         for bullet in self.bullets[:]:
             bullet["x"] += bullet["vx"]
             bullet["life"] -= 1
+
+            bullet["anim_timer"] += 1
+            if bullet["anim_timer"] >= 3:
+                bullet["anim_timer"] = 0
+                bullet["frame"] = (bullet["frame"] + 1) % len(self.bullet_frames)
 
             if bullet["x"] < -40 or bullet["x"] > SCREEN_W + 40 or bullet["life"] <= 0:
                 self.bullets.remove(bullet)
@@ -428,7 +636,18 @@ class Level3:
             proj["y"] += proj["vy"]
             proj["life"] -= 1
 
-            if proj["life"] <= 0 or proj["x"] < -60:
+            # animate projectile
+            proj["anim_timer"] += 1
+            if proj["anim_timer"] >= self.acid_anim_speed:
+                proj["anim_timer"] = 0
+                proj["frame"] = (proj["frame"] + 1) % len(self.acid_frames)
+
+            if (
+                proj["life"] <= 0
+                or proj["x"] < -60
+                or proj["x"] > SCREEN_W + 60
+                or proj["y"] > PLAY_AREA_BOTTOM - 15
+            ):
                 self.enemy_projectiles.remove(proj)
                 continue
 
@@ -461,6 +680,7 @@ class Level3:
             return
 
         self.shoot_cooldown = 10
+        self.shooting_timer = self.shooting_anim_speed * ASTRO_SHOOT_COUNT
 
         damage = BOOST_DAMAGE if boost else NORMAL_DAMAGE
         bullet_boost = boost
@@ -480,14 +700,18 @@ class Level3:
             "damage": damage,
             "power": bullet_boost,
             "life": 80,
+            "frame": 0,
+            "anim_timer": 0,
         })
 
     def _spawn_enemy_projectile(self):
         start_x = self.boss_x - 35
         start_y = self.boss_y + random.randint(-40, 55)
 
+        target_y = min(self.py - 28, PLAY_AREA_BOTTOM - 35)
+
         dx = self.px - start_x
-        dy = (self.py - 28) - start_y
+        dy = target_y - start_y
         dist = max(1, math.hypot(dx, dy))
 
         speed = 4.1 + self.boss_phase * 0.6
@@ -498,6 +722,8 @@ class Level3:
             "vx": dx / dist * speed,
             "vy": dy / dist * speed,
             "life": 170,
+            "frame": random.randint(0, len(self.acid_frames) - 1),
+            "anim_timer": 0,
         })
 
     def _spawn_corruption_zone(self):
@@ -543,6 +769,27 @@ class Level3:
         self.flash_msg = "SUIT DAMAGED"
         self.flash_timer = 40
 
+    def _spawn_boss_disintegration(self):
+        self.death_particles = []
+
+        # Spawn particles around boss body
+        for _ in range(180):
+            px = self.boss_x + random.randint(-80, 80)
+            py = self.boss_y + random.randint(-120, 120)
+
+            color = random.choice([
+                (255, 80, 25),
+                (180, 0, 45),
+                (90, 0, 120),
+                (255, 180, 60),
+            ])
+
+            self.death_particles.append(
+                DisintegrationParticle(px, py, color=color, block_size=random.choice([4, 5, 6]))
+            )
+
+
+
     # ─────────────────────────────────────────────
     # HELPERS
     # ─────────────────────────────────────────────
@@ -582,8 +829,12 @@ class Level3:
 
         self._draw_environment_effects(surf)
         self._draw_corruption_zones(surf)
-        self._draw_boss(surf)
-        self._draw_weak_point(surf)
+        if not self.boss_dying:
+            self._draw_boss(surf)
+            self._draw_weak_point(surf)
+        else:
+            for p in self.death_particles:
+                p.draw(surf)
         self._draw_player(surf)
         self._draw_bullets(surf)
         self._draw_enemy_projectiles(surf)
@@ -607,217 +858,410 @@ class Level3:
                 pygame.draw.line(surf, (180, 50, 20), (x, y), (x + random.randint(-8, 8), y + random.randint(4, 12)), 1)
 
     def _draw_corruption_zones(self, surf):
-        for zone in self.corruption_zones:
-            rect = zone["rect"]
-            pulse = int(45 + 25 * math.sin(self.t * 0.15))
-
-            pygame.draw.rect(surf, (5, 0, 8), rect)
-            pygame.draw.rect(surf, (80 + pulse, 0, 55), rect, 2)
-
-            # veins
-            for i in range(4):
-                x1 = rect.x + 8 + i * 25
-                y1 = rect.y + random.randint(2, 12)
-                x2 = x1 + random.randint(15, 35)
-                y2 = rect.y + random.randint(2, 14)
-                pygame.draw.line(surf, (150, 10, 40), (x1, y1), (x2, y2), 1)
+        return
 
     def _draw_boss(self, surf):
         bx = int(self.boss_x)
         by = int(self.boss_y)
 
-        pulse = math.sin(self.t * 0.06)
-        body_w = int(135 + pulse * 8)
-        body_h = int(210 + pulse * 10)
+        # Organic aura behind sprite
+        aura_size = 280
+        aura = pygame.Surface((aura_size, aura_size), pygame.SRCALPHA)
+        pulse = int(45 + 25 * math.sin(self.t * 0.08))
 
-        # Organic aura
-        aura = pygame.Surface((260, 330), pygame.SRCALPHA)
-        pygame.draw.ellipse(aura, (80, 0, 90, 50), (40, 40, 180, 250))
-        pygame.draw.ellipse(aura, (25, 0, 35, 160), (55, 55, 150, 220))
-        surf.blit(aura, (bx - 130, by - 155))
-
-        # Main dark body
-        pygame.draw.ellipse(
-            surf,
-            (8, 0, 16),
-            (bx - body_w // 2, by - body_h // 2, body_w, body_h)
+        pygame.draw.circle(
+            aura,
+            (90, 0, 100, pulse),
+            (aura_size // 2, aura_size // 2),
+            aura_size // 2 - 20
         )
 
-        pygame.draw.ellipse(
-            surf,
-            (70, 0, 85),
-            (bx - body_w // 2, by - body_h // 2, body_w, body_h),
-            3
+        pygame.draw.circle(
+            aura,
+            (150, 20, 30, 30),
+            (aura_size // 2, aura_size // 2),
+            aura_size // 2 - 55
         )
 
-        # Tendrils
-        for i in range(9):
-            ang = i * 0.7 + self.t * 0.035
-            length = 85 + 20 * math.sin(self.t * 0.04 + i)
-            sx = bx + int(math.cos(ang) * 35)
-            sy = by + int(math.sin(ang) * 70)
-            ex = sx + int(math.cos(ang) * length)
-            ey = sy + int(math.sin(ang) * length * 0.4)
+        surf.blit(aura, (bx - aura_size // 2, by - aura_size // 2))
 
-            pygame.draw.line(surf, (20, 0, 35), (sx, sy), (ex, ey), 8)
-            pygame.draw.line(surf, (105, 0, 90), (sx, sy), (ex, ey), 2)
+        # Select animation frame
+        frame_index = (self.boss_anim // self.me_anim_speed) % len(self.me_frames)
+        img = self.me_frames[frame_index]
 
-        # Boss core glow
-        core_r = int(28 + 5 * math.sin(self.t * 0.12))
-        pygame.draw.circle(surf, (120, 20, 0), (bx, by), core_r + 12)
-        pygame.draw.circle(surf, (255, 85, 20), (bx, by), core_r)
-        pygame.draw.circle(surf, (255, 210, 70), (bx, by), max(5, core_r // 3))
+        # Boss is on the right, player is on the left.
+        # If your ME sprite already faces left, leave it.
+        # If it faces right, uncomment the flip below.
+        # img = pygame.transform.flip(img, True, False)
+
+        rect = img.get_rect(center=(bx, by))
+        surf.blit(img, rect)
+
+        # Phase corruption outline / danger flicker
+        if self.boss_phase >= 2 and self.t % 12 < 6:
+            ghost = img.copy()
+            ghost.fill((140, 0, 40, 80), special_flags=pygame.BLEND_RGBA_MULT)
+            surf.blit(ghost, rect.move(random.randint(-3, 3), random.randint(-2, 2)))
+
+        # Extra rage flicker in phase 3
+        if self.boss_phase >= 3 and self.t % 8 < 4:
+            for _ in range(8):
+                px = random.randint(rect.left, rect.right)
+                py = random.randint(rect.top, rect.bottom)
+                pygame.draw.rect(
+                    surf,
+                    random.choice([(180, 0, 40), (90, 0, 130), (255, 70, 30)]),
+                    (px, py, random.randint(2, 5), random.randint(2, 5))
+                )
+
+        for i in range(0, 360, 45):
+            angle = math.radians(i + self.t * 3)
+            orbit_r = 42 + int(6 * math.sin(self.t * 0.08))
+
+            ox = int(self.weak_point["x"] + math.cos(angle) * orbit_r)
+            oy = int(self.weak_point["y"] + math.sin(angle) * orbit_r)
+
+            pygame.draw.rect(
+                surf,
+                (255, 90, 30),
+                (ox, oy, 4, 4)
+            )
 
     def _draw_weak_point(self, surf):
-        if not self.weak_point["active"]:
-            return
-
-        x = int(self.weak_point["x"])
-        y = int(self.weak_point["y"])
-        r = self.weak_point["r"]
-
-        pulse = int(180 + 60 * math.sin(self.t * 0.18))
-
-        pygame.draw.circle(surf, (255, 120, 20), (x, y), r + 8, 2)
-        pygame.draw.circle(surf, (pulse, 45, 20), (x, y), r)
-        pygame.draw.circle(surf, (255, 220, 80), (x, y), max(4, r // 3))
+        """
+        Invisible weak point.
+        Hit detection still works, but no ugly target circle is drawn.
+        """
+        return
 
     def _draw_player(self, surf):
         if self.immune_timer > 0 and self.immune_timer % 8 >= 4:
             return
 
-        moving = abs(self.vx) > 0.1
-        frame_index = (self.player_frame // self.astro_anim_speed) % len(self.astro_frames)
-        img = self.astro_frames[frame_index]
+        # Shooting animation has priority
+        if self.shooting_timer > 0 and len(self.astro_shoot_frames) > 0:
+            frame_index = ((self.shooting_anim_speed * ASTRO_SHOOT_COUNT - self.shooting_timer) // self.shooting_anim_speed)
+            frame_index = clamp(frame_index, 0, len(self.astro_shoot_frames) - 1)
+            img = self.astro_shoot_frames[int(frame_index)]
+        else:
+            frame_index = (self.player_frame // self.astro_anim_speed) % len(self.astro_frames)
+            img = self.astro_frames[frame_index]
 
-        # Assumes ASTRO faces right by default
+        # Assumes sprite faces right by default
         if self.facing == -1:
             img = pygame.transform.flip(img, True, False)
 
         rect = img.get_rect(midbottom=(int(self.px), int(self.py)))
         surf.blit(img, rect)
 
-        # Weapon line if sprite does not visibly show gun
-        gun_y = int(self.py - 30)
-        gun_x = int(self.px + self.facing * 22)
-        pygame.draw.line(surf, (180, 180, 160), (int(self.px), gun_y), (gun_x, gun_y - 2), 3)
-        pygame.draw.rect(surf, (255, 110, 30), (gun_x, gun_y - 4, 8 * self.facing, 4))
-
     def _draw_bullets(self, surf):
-        for bullet in self.bullets:
-            x = int(bullet["x"])
-            y = int(bullet["y"])
+        if not self.bullet_frames:
+            return
 
-            if bullet["power"]:
-                pygame.draw.circle(surf, (255, 145, 20), (x, y), 8)
-                pygame.draw.circle(surf, (255, 40, 30), (x, y), 15, 2)
-            else:
-                pygame.draw.circle(surf, (255, 220, 80), (x, y), 4)
+        for bullet in self.bullets:
+            frame_index = bullet.get("frame", 0) % len(self.bullet_frames)
+            img = self.bullet_frames[frame_index]
+
+            if bullet["vx"] < 0:
+                img = pygame.transform.flip(img, True, False)
+
+            if bullet.get("power", False):
+                img = pygame.transform.scale(img, (58, 30))
+
+            rect = img.get_rect(center=(int(bullet["x"]), int(bullet["y"])))
+            surf.blit(img, rect)
+                
 
     def _draw_enemy_projectiles(self, surf):
         for proj in self.enemy_projectiles:
-            x = int(proj["x"])
-            y = int(proj["y"])
+            if proj["y"] > PLAY_AREA_BOTTOM - 15:
+                continue
 
-            pygame.draw.circle(surf, (60, 255, 100), (x, y), 7)
-            pygame.draw.circle(surf, (0, 120, 50), (x, y), 13, 2)
+            frame = self.acid_frames[proj["frame"]]
+
+            angle = math.degrees(math.atan2(-proj["vy"], proj["vx"]))
+            rotated = pygame.transform.rotate(frame, angle)
+
+            rect = rotated.get_rect(center=(int(proj["x"]), int(proj["y"])))
+            surf.blit(rotated, rect)
 
     def _draw_lighting(self, surf):
         if self.blackout_active:
             overlay = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 190))
+            overlay.fill((0, 0, 0, 210))
 
-            # Cut visibility around player and boss core
-            pygame.draw.circle(overlay, (0, 0, 0, 30), (int(self.px), int(self.py - 30)), 105)
-            pygame.draw.circle(overlay, (0, 0, 0, 60), (int(self.weak_point["x"]), int(self.weak_point["y"])), 95)
+            # Visibility around player
+            pygame.draw.circle(
+                overlay,
+                (0, 0, 0, 45),
+                (int(self.px), int(self.py - 30)),
+                110
+            )
+
+            # Boss weak point glow
+            pygame.draw.circle(
+                overlay,
+                (0, 0, 0, 70),
+                (int(self.weak_point["x"]), int(self.weak_point["y"])),
+                90
+            )
 
             surf.blit(overlay, (0, 0))
 
-        # subtle scanlines
+        # CRT scanline effect
         scan = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
         for y in range(0, SCREEN_H, 5):
             pygame.draw.line(scan, (255, 255, 255, 7), (0, y), (SCREEN_W, y))
         surf.blit(scan, (0, 0))
 
     def _draw_hud(self, surf):
-        hud_h = 78
+        # ─────────────────────────────────────────────
+        # TOP BOSS HUD
+        # ─────────────────────────────────────────────
+        top_h = 48
 
-        pygame.draw.rect(surf, (3, 4, 8), (0, 0, SCREEN_W, hud_h))
-        pygame.draw.line(surf, (120, 25, 18), (0, hud_h - 1), (SCREEN_W, hud_h - 1), 2)
+        BG = (3, 4, 8)
+        PANEL = (7, 6, 10)
+        RED = (230, 45, 35)
+        RED_DIM = (105, 22, 18)
+        ORANGE = (255, 130, 35)
+        GREEN = (0, 235, 95)
+        GREEN_DIM = (0, 110, 55)
+        TEXT_DIM = (130, 65, 55)
+        FAINT = (60, 35, 35)
 
-        # Mission
-        draw_text_left(surf, "MISSION", font_tiny, (120, 55, 45), 18, 10)
-        draw_text_left(surf, "ELIMINATE THREAT", font_small, (235, 55, 35), 18, 28)
+        pygame.draw.rect(surf, BG, (0, 0, SCREEN_W, top_h))
+        pygame.draw.line(surf, RED_DIM, (0, top_h - 1), (SCREEN_W, top_h - 1), 2)
 
-        # Boss HP
-        boss_bar_x = 250
-        boss_bar_y = 18
-        boss_bar_w = 290
-        boss_bar_h = 14
+        # Subtle scanlines
+        for y in range(2, top_h, 5):
+            pygame.draw.line(surf, (18, 5, 5), (0, y), (SCREEN_W, y), 1)
 
-        draw_text(surf, "MOON EATER", font_tiny, (255, 125, 20), boss_bar_x + boss_bar_w // 2, 10)
+        # Boss HP bar
+        boss_bar_w = 430
+        boss_bar_h = 12
+        boss_bar_x = SCREEN_W // 2 - boss_bar_w // 2
+        boss_bar_y = 22
 
-        pygame.draw.rect(surf, (30, 5, 5), (boss_bar_x, boss_bar_y, boss_bar_w, boss_bar_h))
-        pygame.draw.rect(surf, (160, 25, 20), (boss_bar_x, boss_bar_y, boss_bar_w, boss_bar_h), 1)
+        draw_text(
+            surf,
+            "MOON EATER",
+            font_tiny,
+            ORANGE,
+            SCREEN_W // 2,
+            11
+        )
 
-        hp_w = int(boss_bar_w * (self.boss_hp / self.boss_max_hp))
+        pygame.draw.rect(surf, (28, 5, 5), (boss_bar_x, boss_bar_y, boss_bar_w, boss_bar_h))
+        pygame.draw.rect(surf, RED_DIM, (boss_bar_x, boss_bar_y, boss_bar_w, boss_bar_h), 1)
+
+        hp_ratio = self.boss_hp / self.boss_max_hp
+        hp_w = int(boss_bar_w * hp_ratio)
+
         if hp_w > 0:
-            pygame.draw.rect(surf, (220, 45, 35), (boss_bar_x, boss_bar_y, hp_w, boss_bar_h))
+            pygame.draw.rect(surf, RED, (boss_bar_x, boss_bar_y, hp_w, boss_bar_h))
 
-        draw_text(surf, f"PHASE {self.boss_phase}", font_tiny, (120, 55, 45), boss_bar_x + boss_bar_w // 2, 40)
+        draw_text(
+            surf,
+            f"PHASE {self.boss_phase}",
+            font_tiny,
+            TEXT_DIM,
+            SCREEN_W // 2,
+            40
+        )
 
-        # Ammo
-        # Weapon info
+        # ─────────────────────────────────────────────
+        # BOTTOM SPACECRAFT CONSOLE HUD
+        # ─────────────────────────────────────────────
+        bottom_h = 82
+        bottom_y = SCREEN_H - bottom_h
+
+        pygame.draw.rect(surf, BG, (0, bottom_y, SCREEN_W, bottom_h))
+        pygame.draw.line(surf, RED_DIM, (0, bottom_y), (SCREEN_W, bottom_y), 2)
+
+        # Console scanline / metal plate texture
+        for y in range(bottom_y + 3, SCREEN_H, 5):
+            pygame.draw.line(surf, (16, 4, 4), (0, y), (SCREEN_W, y), 1)
+
+        for x in range(0, SCREEN_W, 40):
+            pygame.draw.line(surf, (10, 8, 12), (x, bottom_y), (x, SCREEN_H), 1)
+
+        # Layout sections
+        left_rect = pygame.Rect(16, bottom_y + 12, 245, 56)
+        mid_rect = pygame.Rect(280, bottom_y + 12, 245, 56)
+        right_rect = pygame.Rect(SCREEN_W - 255, bottom_y + 12, 240, 56)
+
+        for rect in [left_rect, mid_rect, right_rect]:
+            pygame.draw.rect(surf, PANEL, rect)
+            pygame.draw.rect(surf, RED_DIM, rect, 1)
+
+        # ─────────────────────────────────────────────
+        # LEFT: CONTROLS + SECTOR LORE
+        # ─────────────────────────────────────────────
         draw_text_left(
             surf,
-            "J SHOOT  |  HOLD R BOOST",
+            "SECTOR: 04-B // LAUNCH CHAMBER",
             font_tiny,
-            (255, 220, 80),
-            18,
-            54
+            TEXT_DIM,
+            left_rect.x + 10,
+            left_rect.y + 8
         )
 
-        # Boost charge
-        charge_x = 250
-        charge_y = 55
-        charge_w = 210
-        charge_h = 8
+        draw_text_left(
+            surf,
+            "A/D MOVE   W JUMP",
+            font_tiny,
+            (160, 100, 70),
+            left_rect.x + 10,
+            left_rect.y + 25
+        )
 
-        pygame.draw.rect(surf, (25, 8, 5), (charge_x, charge_y, charge_w, charge_h))
+        draw_text_left(
+            surf,
+            "J SHOOT   HOLD R BOOST",
+            font_tiny,
+            ORANGE,
+            left_rect.x + 10,
+            left_rect.y + 40
+        )
 
+        # Small warning light
+        if self.t % 50 < 25:
+            pygame.draw.rect(surf, RED, (left_rect.right - 18, left_rect.y + 10, 6, 6))
+        else:
+            pygame.draw.rect(surf, FAINT, (left_rect.right - 18, left_rect.y + 10, 6, 6))
+
+        # ─────────────────────────────────────────────
+        # MIDDLE: HEART RATE / BIO-SCANNER
+        # ─────────────────────────────────────────────
+       # ─────────────────────────────────────────────
+# MIDDLE: SYSTEM MESSAGE DISPLAY
+# ─────────────────────────────────────────────
+
+        draw_text_left(
+            surf,
+            "SYSTEM MESSAGE",
+            font_tiny,
+            TEXT_DIM,
+            mid_rect.x + 10,
+            mid_rect.y + 8
+        )
+
+        # Choose what message appears in the HUD
+        if self.flash_timer > 0 and self.flash_msg:
+            message = self.flash_msg.upper()
+            msg_col = ORANGE
+
+            # Damage-related messages turn red
+            if "DAMAGE" in message or "HIT" in message or "FAILURE" in message:
+                msg_col = RED
+
+        elif self.blackout_active:
+            message = "POWER FAILURE"
+            msg_col = RED
+
+        elif self.boss_voice_timer > 0 and self.boss_voice:
+            message = "HOSTILE SIGNAL DETECTED"
+            msg_col = RED_DIM
+
+        else:
+            message = "NO STABLE SIGNAL"
+            msg_col = TEXT_DIM
+
+        # Flicker urgent messages
+        if msg_col == RED and self.t % 20 < 8:
+            msg_col = (120, 20, 18)
+
+        draw_text(
+            surf,
+            message,
+            font_small,
+            msg_col,
+            mid_rect.centerx,
+            mid_rect.y + 30
+        )
+
+        # Small fake terminal line
+        terminal_line = "LOG // COMBAT SYSTEM ACTIVE"
+
+        draw_text(
+            surf,
+            terminal_line,
+            font_tiny,
+            FAINT,
+            mid_rect.centerx,
+            mid_rect.y + 48
+        )
+
+        # ─────────────────────────────────────────────
+        # RIGHT: SUIT + BOOST CHARGE
+        # ─────────────────────────────────────────────
+        draw_text_left(
+            surf,
+            "SUIT INTEGRITY",
+            font_tiny,
+            GREEN_DIM,
+            right_rect.x + 10,
+            right_rect.y + 8
+        )
+
+        hp_percent = self.player_hp / self.player_max
+        danger = hp_percent <= 0.35
+        heart_col = RED if danger else GREEN
+
+        # Suit HP bar
+        suit_bar_x = right_rect.x + 10
+        suit_bar_y = right_rect.y + 24
+        suit_bar_w = 95
+        suit_bar_h = 9
+
+        pygame.draw.rect(surf, (5, 22, 8), (suit_bar_x, suit_bar_y, suit_bar_w, suit_bar_h))
+        pygame.draw.rect(surf, GREEN_DIM, (suit_bar_x, suit_bar_y, suit_bar_w, suit_bar_h), 1)
+
+        suit_fill = int(suit_bar_w * hp_percent)
+
+        if suit_fill > 0:
+            pygame.draw.rect(surf, heart_col, (suit_bar_x, suit_bar_y, suit_fill, suit_bar_h))
+
+        draw_text_left(
+            surf,
+            f"{self.player_hp}/{self.player_max}",
+            font_tiny,
+            heart_col,
+            suit_bar_x + suit_bar_w + 12,
+            suit_bar_y - 2
+        )
+
+        # Boost charge bar
+        boost_y = right_rect.y + 43
         charge_ratio = self.boost_charge / BOOST_CHARGE_TIME
+
+        pygame.draw.rect(surf, (28, 8, 5), (suit_bar_x, boost_y, 135, 8))
         pygame.draw.rect(
             surf,
-            (255, 125, 20),
-            (charge_x, charge_y, int(charge_w * charge_ratio), charge_h)
+            ORANGE,
+            (suit_bar_x, boost_y, int(135 * charge_ratio), 8)
         )
-        pygame.draw.rect(surf, (160, 25, 20), (charge_x, charge_y, charge_w, charge_h), 1)
+        pygame.draw.rect(surf, RED_DIM, (suit_bar_x, boost_y, 135, 8), 1)
 
         if self.boost_ready:
-            text_col = (255, 150, 40) if self.t % 30 < 15 else (255, 50, 40)
-            draw_text_left(surf, "BOOST READY - RELEASE R", font_tiny, text_col, charge_x + charge_w + 12, 50)
+            boost_text = "BOOST READY"
+            boost_col = ORANGE if self.t % 30 < 15 else RED
         elif self.boost_charging:
-            draw_text_left(surf, "CHARGING BOOST", font_tiny, (180, 90, 45), charge_x + charge_w + 12, 50)
+            boost_text = "BOOST CHARGING"
+            boost_col = (180, 95, 45)
         else:
-            draw_text_left(surf, "BOOST SHOT", font_tiny, (120, 65, 45), charge_x + charge_w + 12, 50)
+            boost_text = "BOOST"
+            boost_col = TEXT_DIM
 
-        # Player HP
-        suit_x = SCREEN_W - 175
-        draw_text_left(surf, "SUIT", font_tiny, (0, 130, 55), suit_x, 10)
-
-        bar_x = suit_x
-        bar_y = 29
-        bar_w = 115
-        bar_h = 11
-
-        pygame.draw.rect(surf, (5, 25, 8), (bar_x, bar_y, bar_w, bar_h))
-        pygame.draw.rect(surf, (0, 120, 45), (bar_x, bar_y, bar_w, bar_h), 1)
-
-        fill = int(bar_w * (self.player_hp / self.player_max))
-        if fill > 0:
-            pygame.draw.rect(surf, (0, 235, 80), (bar_x, bar_y, fill, bar_h))
-
-        draw_text_left(surf, f"{self.player_hp}/{self.player_max}", font_small, (0, 235, 80), suit_x, 47)
+        draw_text_left(
+            surf,
+            boost_text,
+            font_tiny,
+            boost_col,
+            suit_bar_x + 145,
+            boost_y - 2
+        )
 
     def _draw_messages(self, surf):
         if self.boss_voice_timer > 0 and self.boss_voice:
@@ -828,18 +1272,6 @@ class Level3:
                 (180, 40, 50),
                 SCREEN_W // 2,
                 110
-            )
-
-        if self.flash_timer > 0 and self.flash_msg:
-            alpha = min(255, self.flash_timer * 5)
-            draw_text(
-                surf,
-                self.flash_msg,
-                font_med,
-                (255, 140, 40),
-                SCREEN_W // 2,
-                SCREEN_H - 55,
-                alpha
             )
 
         if self.reveal_timer > 0:
@@ -862,3 +1294,16 @@ class Level3:
                 SCREEN_H // 2 - 35,
                 alpha
             )
+
+        if self.intro_shake_timer > 0:
+            alpha = min(255, self.intro_shake_timer * 4)
+
+            draw_text(
+                surf,
+                "STRUCTURAL FAILURE DETECTED",
+                font_med,
+                (255, 55, 35),
+                SCREEN_W // 2,
+                120,
+                alpha
+    )

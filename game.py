@@ -47,11 +47,8 @@ STATE_GAMEOVER = "gameover"
 STATE_TRANSITION = "transition"
 
 
-# Set this to test a level directly.
-# Use STATE_TITLE for normal game flow.
 DEBUG_START_STATE = STATE_LEVEL3
-# Example:
-# DEBUG_START_STATE = STATE_LEVEL2
+
 
 
 # ─────────────────────────────────────────────
@@ -83,6 +80,7 @@ CUTSCENE1_LINES = [
     "SOMETHING IS WATCHING ME...",
     "I HAVE TO MOVE. NOW.",
     "TASK: COLLECT ALL 5 SHIP PARTS TO PROCEED —",
+    "HOW TO PLAY - WASD TO MOVE",
 ]
 
 CUTSCENE2_LINES = [
@@ -98,6 +96,7 @@ CUTSCENE2_LINES = [
     "I WON'T LET IT.",
     "MAY GOD BE WITH ME",
     "TASK: REPAIR ALL SHIP SYSTEMS TO PROCEED —",
+    "HOW TO PLAY - WASD TO MOVE, PRESS E TO FIX",
 ]
 
 CUTSCENE3_LINES = [
@@ -113,6 +112,9 @@ CUTSCENE3_LINES = [
     "IF I CAN'T GET PAST IT, I'LL NEVER MAKE IT HOME.",
     "THIS ENDS HERE.",
     "TASK: DESTROY THE MOON EATER TO ESCAPE —",
+    "HOW TO PLAY - WASD TO MOVE",
+    "SPACE TO JUMP",
+    "J TO SHOOT AND R TO BOOST SHOOT",
 ]
 
 WIN_LINES = [
@@ -123,8 +125,8 @@ WIN_LINES = [
     "MISSION CONTROL: '...WE'RE READING A SIGNAL! APOLLO 11 IS THAT YOU?!'",
     "ME: 'I'M COMING HOME.'",
     "MISSION CONTROL: '...WE NEVER STOPPED BELIEVING.'",
-    "JULY 21, 1969 — ASTRONAUT ERROR, MISSION COMPLETE.",
-    "ERROR 1969 — OVERCOME.",
+    "JULY 21, 1969 — ASTRONAUT NEIL, MISSION COMPLETE.",
+    "APOLLO 11 — OVERCOME.",
 ]
 
 
@@ -300,7 +302,7 @@ def main():
                     go_to(STATE_DEATH_CUTSCENE)
 
                 elif scene.done:
-                    go_to(STATE_WIN_SCENE)
+                    go_to(STATE_WIN)
 
             elif state == STATE_DEATH_CUTSCENE and scene.done:
                 go_to(STATE_GAMEOVER)
