@@ -14,6 +14,7 @@ BG_PATHS = [
     "assets/images/backgrounds/LVL3.jpg",
 ]
 
+ASTRO_FRAME_DIR = "assets/images/monsters/astronaut"
 ASTRO3_FRAME_DIR = "assets/images/monsters/astro3"
 
 ASTRO_FRAME_COUNT = 5      
@@ -154,7 +155,7 @@ class Level3:
         self.snd_charge = load_sound("assets/audio/level3/ChargeSounds.wav", volume=0.5)
         self.snd_boss_noise = load_sound("assets/audio/level3/BossNoises.mp3", volume=0.6)
         self.snd_boss_impact = load_sound("assets/audio/level3/level3bossimpact.wav", volume=0.6)
-        self.snd_boss_dying = load_sound("assets/audio/level3/level3bossdyingsound.mp3", volume=0.7)
+        self.snd_boss_dying = load_sound("assets/audio/level3/level3bossdyingsound.mp3", volume=1.0)
         if self.snd_boss_dying:
             self.boss_fade_duration = int(self.snd_boss_dying.get_length() * FPS)
         self.boss_noise_timer = random.randint(240, 420)
