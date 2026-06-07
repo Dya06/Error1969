@@ -557,176 +557,57 @@ def draw_ship(surf, x, y, frame=0, broken=True):
         pygame.draw.circle(surf, (glow, glow // 2, 0), (x, y + 12), 6)
         spawn_particles(x, y + 14, ORANGE, 1, 1, 15, 2)
 
-def _part_glow(surf, x, y, colour, part_type):
-    """Draw a pulsing glow halo behind a ship part."""
-    pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() * 0.004 + part_type * 1.3)
-    r = int(18 + 6 * pulse)
-    alpha = int(60 + 40 * pulse)
-    s = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
-    pygame.draw.circle(s, (*colour, alpha), (r, r), r)
-    surf.blit(s, (x - r, y - r))
-
-def draw_part_engine(surf, x, y):
-    """Part 0 – Engine Core: a chunky rocket nozzle with heat glow."""
-    t = pygame.time.get_ticks() * 0.004
-    _part_glow(surf, x, y, ORANGE, 0)
-    # Main nozzle body (bell shape via polygon)
-    pygame.draw.polygon(surf, (160, 100, 40),
-                        [(x - 8, y - 14), (x + 8, y - 14),
-                         (x + 13, y + 6),  (x - 13, y + 6)])
-    pygame.draw.polygon(surf, (200, 130, 60),
-                        [(x - 8, y - 14), (x + 8, y - 14),
-                         (x + 13, y + 6),  (x - 13, y + 6)], 2)
-    # Nozzle throat (inner dark ring)
-    pygame.draw.ellipse(surf, (80, 50, 20),  (x - 7, y - 16, 14, 6))
-    pygame.draw.ellipse(surf, ORANGE,         (x - 7, y - 16, 14, 6), 1)
-    # Nozzle flare opening
-    pygame.draw.ellipse(surf, (50, 30, 10),  (x - 13, y + 3, 26, 8))
-    pygame.draw.ellipse(surf, (220, 140, 60),(x - 13, y + 3, 26, 8), 1)
-    # Engine glow fire (animated)
-    flame_h = int(8 + 5 * abs(math.sin(t)))
-    flame_col_inner = (255, 220, 80)
-    flame_col_outer = (255, 120, 20)
-    pygame.draw.polygon(surf, flame_col_outer,
-                        [(x - 10, y + 7), (x + 10, y + 7),
-                         (x + 5,  y + 7 + flame_h), (x - 5, y + 7 + flame_h)])
-    pygame.draw.polygon(surf, flame_col_inner,
-                        [(x - 5, y + 7), (x + 5, y + 7),
-                         (x + 2, y + 7 + flame_h - 3), (x - 2, y + 7 + flame_h - 3)])
-    # Mounting bolts
-    for bx in [x - 8, x + 8]:
-        pygame.draw.circle(surf, MOON_GREY, (bx, y - 10), 2)
-        pygame.draw.circle(surf, WHITE,     (bx, y - 10), 2, 1)
-    # Label
-    draw_text(surf, "ENGINE", font_tiny, ORANGE, x, y + 22)
-
-def draw_part_fuel_cell(surf, x, y):
-    """Part 1 – Fuel Cell: cylindrical canister with pressure gauges."""
-    t = pygame.time.get_ticks() * 0.003
-    _part_glow(surf, x, y, CYAN, 1)
-    # Cylinder body
-    pygame.draw.rect(surf, (40, 120, 160),  (x - 10, y - 14, 20, 24))
-    pygame.draw.rect(surf, CYAN,             (x - 10, y - 14, 20, 24), 2)
-    # Top cap
-    pygame.draw.ellipse(surf, (60, 160, 200),(x - 10, y - 18, 20, 8))
-    pygame.draw.ellipse(surf, CYAN,          (x - 10, y - 18, 20, 8), 1)
-    # Bottom cap
-    pygame.draw.ellipse(surf, (30, 90, 130), (x - 10, y + 8,  20, 8))
-    pygame.draw.ellipse(surf, CYAN,          (x - 10, y + 8,  20, 8), 1)
-    # Pressure gauge circle
-    pygame.draw.circle(surf, (10, 30, 50),  (x, y - 4), 6)
-    pygame.draw.circle(surf, CYAN,          (x, y - 4), 6, 1)
-    # Gauge needle (animated)
-    needle_angle = math.pi * 1.1 + 0.8 * math.sin(t)
-    nx = int(x + 4 * math.cos(needle_angle))
-    ny = int(y - 4 + 4 * math.sin(needle_angle))
-    pygame.draw.line(surf, (255, 80, 80), (x, y - 4), (nx, ny), 1)
-    # Horizontal band markings
-    for by in [y - 2, y + 4]:
-        pygame.draw.line(surf, (0, 180, 220), (x - 9, by), (x + 9, by), 1)
-    # Valve pipe on side
-    pygame.draw.rect(surf, MOON_GREY, (x + 10, y - 2, 6, 4))
-    pygame.draw.circle(surf, MOON_DARK, (x + 16, y), 3)
-    pygame.draw.circle(surf, MOON_GREY, (x + 16, y), 3, 1)
-    draw_text(surf, "FUEL", font_tiny, CYAN, x, y + 22)
-
-def draw_part_nav_module(surf, x, y):
-    """Part 2 – Nav Module: circuit board with blinking LEDs and antenna."""
-    t = pygame.time.get_ticks()
-    _part_glow(surf, x, y, GOLD, 2)
-    # PCB board (green rectangle)
-    pygame.draw.rect(surf, (20, 80, 30),  (x - 14, y - 12, 28, 22))
-    pygame.draw.rect(surf, (40, 160, 50), (x - 14, y - 12, 28, 22), 2)
-    # Circuit traces (horizontal + vertical lines)
-    for lx in [x - 8, x, x + 8]:
-        pygame.draw.line(surf, (30, 120, 40), (lx, y - 12), (lx, y + 10), 1)
-    for ly in [y - 6, y, y + 6]:
-        pygame.draw.line(surf, (30, 120, 40), (x - 14, ly), (x + 14, ly), 1)
-    # Chip (dark square with pins)
-    pygame.draw.rect(surf, (15, 15, 20),  (x - 6, y - 5, 12, 10))
-    pygame.draw.rect(surf, (80, 80, 100), (x - 6, y - 5, 12, 10), 1)
-    for py2 in [y - 3, y, y + 3]:
-        pygame.draw.line(surf, (150, 150, 160), (x - 8, py2), (x - 6, py2), 1)
-        pygame.draw.line(surf, (150, 150, 160), (x + 6, py2), (x + 8, py2), 1)
-    # Blinking LEDs
-    for i, (ldx, ldy, lcol) in enumerate([(-10, -9, RED), (10, -9, (0,200,0)), (0, -9, GOLD)]):
-        blink = (t // (200 + i * 80)) % 2 == 0
-        col = lcol if blink else (20, 20, 20)
-        pygame.draw.circle(surf, col, (x + ldx, y + ldy), 2)
-    # Antenna sticking up
-    pygame.draw.line(surf, MOON_GREY, (x + 8, y - 12), (x + 8, y - 24), 2)
-    pygame.draw.circle(surf, GOLD, (x + 8, y - 24), 3)
-    pygame.draw.circle(surf, YELLOW, (x + 8, y - 24), 3, 1)
-    draw_text(surf, "NAV", font_tiny, GOLD, x, y + 22)
-
-def draw_part_comm_array(surf, x, y):
-    """Part 3 – Comm Array: satellite dish with signal rings."""
-    t = pygame.time.get_ticks() * 0.003
-    _part_glow(surf, x, y, LIGHT_GREY, 3)
-    # Dish bowl (arc / polygon)
-    dish_pts = [(x - 16, y + 4), (x - 14, y - 8),
-                (x,      y - 14), (x + 14, y - 8), (x + 16, y + 4)]
-    pygame.draw.polygon(surf, (100, 100, 120), dish_pts)
-    pygame.draw.polygon(surf, LIGHT_GREY,      dish_pts, 2)
-    # Dish inner shading
-    inner = [(x - 10, y + 2), (x - 9, y - 5),
-             (x,      y - 10), (x + 9, y - 5), (x + 10, y + 2)]
-    pygame.draw.polygon(surf, (130, 130, 155), inner)
-    # Central focal point
-    pygame.draw.line(surf, MOON_GREY, (x, y + 4), (x + 8, y - 10), 2)
-    pygame.draw.circle(surf, WHITE, (x + 8, y - 10), 3)
-    # Mount pole
-    pygame.draw.rect(surf, MOON_DARK, (x - 2, y + 4, 4, 10))
-    pygame.draw.rect(surf, MOON_GREY, (x - 6, y + 12, 12, 3))
-    # Animated signal rings (emanating from focal point)
-    sig_phase = (t % (math.pi * 2))
-    for i in range(3):
-        ring_r = int(6 + i * 6 + (sig_phase / (math.pi * 2)) * 6)
-        ring_alpha = max(0, int(180 - ring_r * 8))
-        rs = pygame.Surface((ring_r * 2, ring_r * 2), pygame.SRCALPHA)
-        pygame.draw.circle(rs, (200, 200, 255, ring_alpha), (ring_r, ring_r), ring_r, 1)
-        surf.blit(rs, (x + 8 - ring_r, y - 10 - ring_r))
-    draw_text(surf, "COMMS", font_tiny, LIGHT_GREY, x, y + 22)
-
-def draw_part_life_support(surf, x, y):
-    """Part 4 – Life Support: oxygen tank with tubes and pressure readout."""
-    t = pygame.time.get_ticks() * 0.003
-    _part_glow(surf, x, y, (100, 220, 100), 4)
-    # Main tank (rounded rect via ellipse + rect)
-    pygame.draw.rect(surf, (30, 130, 60),   (x - 9, y - 10, 18, 20))
-    pygame.draw.ellipse(surf, (30, 130, 60), (x - 9, y - 16, 18, 12))
-    pygame.draw.ellipse(surf, (30, 130, 60), (x - 9, y + 8,  18, 12))
-    # Outline
-    pygame.draw.rect(surf, (60, 200, 80),   (x - 9, y - 10, 18, 20), 2)
-    pygame.draw.ellipse(surf, (60, 200, 80), (x - 9, y - 16, 18, 12), 2)
-    pygame.draw.ellipse(surf, (60, 200, 80), (x - 9, y + 8,  18, 12), 2)
-    # O2 label on tank
-    draw_text(surf, "O2", font_tiny, (180, 255, 180), x, y - 2)
-    # Valve on top
-    pygame.draw.rect(surf, MOON_DARK, (x - 3, y - 20, 6, 5))
-    pygame.draw.rect(surf, MOON_GREY, (x - 3, y - 20, 6, 5), 1)
-    # Tube coming out of valve, curling to the right
-    tube_pts = [(x, y - 20), (x, y - 26), (x + 8, y - 26), (x + 8, y - 18)]
-    pygame.draw.lines(surf, (160, 160, 160), False, tube_pts, 2)
-    # Tube connector
-    pygame.draw.circle(surf, MOON_GREY, (x + 8, y - 18), 3)
-    pygame.draw.circle(surf, WHITE, (x + 8, y - 18), 3, 1)
-    # Pressure bar on side
-    bar_fill = int(10 + 6 * abs(math.sin(t)))
-    pygame.draw.rect(surf, (20, 60, 30),    (x + 10, y - 8, 5, 16))
-    pygame.draw.rect(surf, (60, 200, 80),   (x + 10, y - 8 + (16 - bar_fill), 5, bar_fill))
-    pygame.draw.rect(surf, MOON_GREY,       (x + 10, y - 8, 5, 16), 1)
-    draw_text(surf, "LIFE SUP", font_tiny, (100, 220, 100), x, y + 22)
-
-# Part name labels aligned to part index used in Level1._place_parts
-PART_NAMES = ["ENGINE", "FUEL CELL", "NAV MOD", "COMMS", "LIFE SUP"]
-PART_DRAWERS = [draw_part_engine, draw_part_fuel_cell,
-                draw_part_nav_module, draw_part_comm_array, draw_part_life_support]
+_part_images = {}
 
 def draw_ship_part(surf, x, y, part_type=0):
-    """Dispatch to the correct detailed pixel-art part drawing."""
-    idx = part_type % len(PART_DRAWERS)
-    PART_DRAWERS[idx](surf, x, y)
+    """Draw a loaded custom PNG ship part asset."""
+    global _part_images
+    idx = part_type % 5
+    if idx not in _part_images:
+        names = [
+            "part_engine_core",
+            "part_fuel_cell",
+            "part_nav_module",
+            "part_comms_array",
+            "part_life_support"
+        ]
+        name = names[idx]
+        try:
+            img = pygame.image.load(f"assets/images/{name}.png").convert_alpha()
+            img = pygame.transform.smoothscale(img, (48, 48))
+            _part_images[idx] = img
+        except Exception as e:
+            print(f"[WARNING] Failed to load part image {name}: {e}")
+            _part_images[idx] = None
+
+    img = _part_images.get(idx)
+    if img:
+        rect = img.get_rect(center=(int(x), int(y)))
+        surf.blit(img, rect)
+
+def draw_part_engine(surf, x, y):
+    draw_ship_part(surf, x, y, 0)
+
+def draw_part_fuel_cell(surf, x, y):
+    draw_ship_part(surf, x, y, 1)
+
+def draw_part_nav_module(surf, x, y):
+    draw_ship_part(surf, x, y, 2)
+
+def draw_part_comm_array(surf, x, y):
+    draw_ship_part(surf, x, y, 3)
+
+def draw_part_life_support(surf, x, y):
+    draw_ship_part(surf, x, y, 4)
+
+PART_NAMES = ["ENGINE", "FUEL CELL", "NAV MOD", "COMMS", "LIFE SUP"]
+PART_DRAWERS = [
+    draw_part_engine,
+    draw_part_fuel_cell,
+    draw_part_nav_module,
+    draw_part_comm_array,
+    draw_part_life_support
+]
 
 def draw_moon_surface(surf, y_base):
     """Draw the moon ground."""

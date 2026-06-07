@@ -31,11 +31,11 @@ PLAY_BOTTOM = SCREEN_H
 PLAY_LEFT = 0
 PLAY_RIGHT = SCREEN_W
 
-PLAYER_RADIUS = 11
+PLAYER_RADIUS = 18
 WATCHER_RADIUS = 30
 
-# Player starts at D2 = col 1, row 3
-START_SECTOR = (1, 3)
+# Player starts at B4 = col 3, row 1
+START_SECTOR = (3, 1)
 
 # Crash site is also D2
 CRASH_SITE_SECTOR = (1, 3)
@@ -51,6 +51,39 @@ PART_TYPES = {
     "NAV MODULE": 2,
     "COMMS ARRAY": 3,
     "LIFE SUPPORT": 4,
+}
+
+
+# ─────────────────────────────────────────────
+#  OBSTACLE MAPPING
+# ─────────────────────────────────────────────
+
+OBSTACLE_MAPPING = {
+    # Blue Barrel
+    "fuel_tank": "blue_barrel",
+    "pipe": "blue_barrel",
+    "oxygen_tank": "blue_barrel",
+    "beacon": "blue_barrel",
+    "helmet": "blue_barrel",
+    "crater": "blue_barrel",
+    "engine_crater": "blue_barrel",
+    
+    # Green Crate
+    "console": "green_crate",
+    "panel": "green_crate",
+    "rover": "green_crate",
+    "antenna": "green_crate",
+    "rock": "green_crate",
+    "small_rocks": "green_crate",
+    "shadow_rock": "green_crate",
+    
+    # Orange Barrier
+    "dish": "orange_barrier",
+    "wreckage": "orange_barrier",
+    "ship": "orange_barrier",
+    "debris": "orange_barrier",
+    "crystal": "orange_barrier",
+    "eye_mark": "orange_barrier",
 }
 
 
@@ -373,13 +406,23 @@ class Level1:
         self.crater_img = load_transparent_img("assets/images/crater.png")
         self.debris_img = load_transparent_img("assets/images/debris.png")
 
+        # Load custom colored obstacle assets
+        self.obstacle_imgs = {}
+        for name in ["blue_barrel", "green_crate", "orange_barrier"]:
+            try:
+                img = pygame.image.load(f"assets/images/{name}.png").convert_alpha()
+                self.obstacle_imgs[name] = img
+            except Exception as e:
+                print(f"[ERROR] Failed to load obstacle image {name}: {e}")
+                self.obstacle_imgs[name] = None
+
         # Load astronaut walking frames from Level 2
         self.astro_frames = []
         for i in range(10):
             path = f"assets/images/monsters/astronaut/ASTRO{i}.png"
             try:
                 img = pygame.image.load(path).convert_alpha()
-                img = pygame.transform.scale(img, (52, 52))
+                img = pygame.transform.smoothscale(img, (96, 96))
                 self.astro_frames.append(img)
             except Exception as e:
                 print(f"[ERROR] Failed to load ASTRO{i}.png: {e}")
@@ -530,15 +573,28 @@ class Level1:
 
         return current_x, current_y
 
+    def _obstacle_collision_shape(self, ob):
+        """Get the actual uniform rect/circle used for collision and drawing (no stretching)."""
+        size = 80
+        if is_circle_obstacle(ob):
+            # Returns (center_x, center_y, radius)
+            return (ob["x"], ob["y"], size // 2)
+        else:
+            rect = rect_from_obstacle(ob)
+            # Create a square rect of 'size' centered at rect.center
+            return pygame.Rect(rect.centerx - size // 2, rect.centery - size // 2, size, size)
+
     def _collides_with_obstacle(self, x, y, radius):
         """Check player/watcher circle collision with current sector obstacles."""
         for ob in self.sector_info()["obstacles"]:
-            if is_circle_obstacle(ob):
-                d = math.hypot(x - ob["x"], y - ob["y"])
-                if d < radius + ob["r"]:
+            shape = self._obstacle_collision_shape(ob)
+            if isinstance(shape, tuple):
+                cx, cy, r = shape
+                d = math.hypot(x - cx, y - cy)
+                if d < radius + r:
                     return True
             else:
-                rect = rect_from_obstacle(ob).inflate(radius * 2, radius * 2)
+                rect = shape.inflate(radius * 2, radius * 2)
                 if rect.collidepoint(x, y):
                     return True
 
@@ -600,7 +656,7 @@ class Level1:
 
         part_x, part_y = info["part_pos"]
 
-        if math.hypot(self.px - part_x, self.py - part_y) < 28:
+        if math.hypot(self.px - part_x, self.py - part_y) < 42:
             self.collected_parts.add(part_name)
             self.flash_msg = f"{part_name} RECOVERED!"
             self.flash_timer = 110
@@ -852,6 +908,7 @@ class Level1:
         self._draw_hud(surf)
         self._draw_sector_title(surf)
         self._draw_flash_message(surf)
+        self._draw_scanlines(surf)
         self._draw_transition_overlay(surf)
 
     def _draw_sector_background(self, surf):
@@ -881,26 +938,8 @@ class Level1:
             pygame.draw.ellipse(surf, (55, 55, 65), (x, y, 7, 3))
             pygame.draw.ellipse(surf, (50, 50, 60), (x + 12, y + 7, 7, 3))
 
-        # Atmospheric colored glows (ambient light indicators)
-        if theme == "crater":
-            glow = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            pygame.draw.circle(glow, (80, 0, 120, 50), (400, 330), 150)
-            surf.blit(glow, (0, 0))
-
-        elif theme == "engine":
-            glow = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            pygame.draw.circle(glow, (255, 100, 0, 45), (350, 330), 130)
-            surf.blit(glow, (0, 0))
-
-        elif theme == "life":
-            glow = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            pygame.draw.circle(glow, (0, 180, 80, 35), (400, 300), 160)
-            surf.blit(glow, (0, 0))
-
-        elif theme == "fuel":
-            glow = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            pygame.draw.circle(glow, (0, 180, 220, 30), (350, 320), 150)
-            surf.blit(glow, (0, 0))
+        # Atmospheric colored glows removed
+        pass
 
     def _draw_obstacles(self, surf):
         for ob in self.sector_info()["obstacles"]:
@@ -908,37 +947,31 @@ class Level1:
 
     def _draw_obstacle(self, surf, ob):
         kind = ob["kind"]
+        img_key = OBSTACLE_MAPPING.get(kind, "green_crate")
+        img = self.obstacle_imgs.get(img_key)
 
-        if is_circle_obstacle(ob):
-            x, y, r = ob["x"], ob["y"], ob["r"]
-            rect = pygame.Rect(x - r, y - r, r * 2, r * 2)
-            if kind in ("crater", "engine_crater") and self.crater_img:
-                scaled_img = pygame.transform.scale(self.crater_img, (rect.w, rect.h))
-                surf.blit(scaled_img, rect.topleft)
+        shape = self._obstacle_collision_shape(ob)
+        size = 80
+
+        if isinstance(shape, tuple):
+            cx, cy, r = shape
+            if img:
+                scaled_img = pygame.transform.smoothscale(img, (size, size))
+                surf.blit(scaled_img, (cx - size // 2, cy - size // 2))
             else:
-                if kind in ("crater", "engine_crater"):
-                    fill = (10, 10, 16) if kind == "crater" else (35, 16, 8)
-                    rim = (90, 90, 105) if kind == "crater" else (160, 80, 30)
-                    pygame.draw.circle(surf, rim, (x, y), r)
-                    pygame.draw.circle(surf, fill, (x, y), int(r * 0.78))
-                else:
-                    pygame.draw.circle(surf, (65, 65, 75), (x, y), r)
-            return
-
-        rect = rect_from_obstacle(ob)
-
-        if kind in ("rock", "small_rocks", "shadow_rock"):
-            if self.rock_img:
-                scaled_img = pygame.transform.scale(self.rock_img, (rect.w, rect.h))
-                surf.blit(scaled_img, rect.topleft)
-            else:
-                pygame.draw.ellipse(surf, (55, 55, 66), rect)
+                pygame.draw.circle(surf, (150, 150, 50), (cx, cy), r)
         else:
-            if self.debris_img:
-                scaled_img = pygame.transform.scale(self.debris_img, (rect.w, rect.h))
+            rect = shape
+            if img:
+                # Check if vertical orientation in design, rotate if so
+                orig_rect = rect_from_obstacle(ob)
+                draw_img = img
+                if orig_rect.h > orig_rect.w and img_key in ["blue_barrel", "green_crate"]:
+                    draw_img = pygame.transform.rotate(img, 90)
+                scaled_img = pygame.transform.smoothscale(draw_img, (size, size))
                 surf.blit(scaled_img, rect.topleft)
             else:
-                pygame.draw.rect(surf, (70, 70, 78), rect)
+                pygame.draw.rect(surf, (150, 150, 50), rect)
 
     def _draw_part(self, surf):
         info = self.sector_info()
@@ -1031,7 +1064,7 @@ class Level1:
         # Centre sector
         draw_text(
             surf,
-            f"SECTOR {info['code']} // {info['name']}",
+            f"SECTOR {info['code']}",
             font_small,
             (170, 170, 190),
             SCREEN_W // 2,
@@ -1166,6 +1199,13 @@ class Level1:
         overlay = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, alpha))
         surf.blit(overlay, (0, 0))
+
+    def _draw_scanlines(self, surf):
+        # CRT scanlines (matching Level 3 / Screens)
+        scan = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        for y in range(0, SCREEN_H, 5):
+            pygame.draw.line(scan, (255, 255, 255, 7), (0, y), (SCREEN_W, y))
+        surf.blit(scan, (0, 0))
 
     def _draw_jumpscare(self, surf):
         t = self.jumpscare_timer
