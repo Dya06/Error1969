@@ -49,7 +49,7 @@ STATE_TRANSITION = "transition"
 
 # Set this to test a level directly.
 # Use STATE_TITLE for normal game flow.
-DEBUG_START_STATE = STATE_TITLE
+DEBUG_START_STATE = STATE_LEVEL3
 # Example:
 # DEBUG_START_STATE = STATE_LEVEL2
 
