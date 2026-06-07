@@ -167,7 +167,6 @@ class Level3:
         self.boss_dying = False
         self.boss_death_timer = 0
 
-        # ── Sounds ────────────────────────────────────
         self.snd_blaster = load_sound("assets/images/audio/level3/BlasterNoise.wav", volume=0.5)
         self.snd_charge = load_sound("assets/images/audio/level3/ChargeSounds.wav", volume=0.5)
         self.snd_boss_noise = load_sound("assets/images/audio/level3/BossNoises.mp3", volume=0.6)
@@ -629,7 +628,6 @@ class Level3:
         elif random.random() < 0.004:
             self._boss_speak()
 
-        # Boss noise plays occasionally on its own cadence
         self.boss_noise_timer -= 1
         if self.boss_noise_timer <= 0:
             self._play_boss_noise()

@@ -41,9 +41,6 @@ def draw_hp_bar(surf, x, y, w, h, hp, max_hp, label="HP"):
     pygame.draw.rect(surf, WHITE, (x, y, w, h), 1)
     draw_text(surf, f"{label} {int(hp)}/{int(max_hp)}", font_tiny, WHITE, x + w // 2, y + h // 2)
 
-# ─────────────────────────────────────────────
-#  AUDIO HELPERS
-# ─────────────────────────────────────────────
 def load_sound(path, volume=1.0):
     try:
         snd = pygame.mixer.Sound(path)

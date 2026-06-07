@@ -54,12 +54,10 @@ class TextScene:
         self.glitch_timer = 0
         self.glitch_offset = 0
 
-        # Background music looped for the duration of this scene
         self.music_path = music_path
         self.music_volume = music_volume
         self._music_started = False
 
-        # Sounds triggered when a specific dialogue line becomes active
         self.line_sounds = {}
         if line_sounds:
             for idx, path in line_sounds.items():
