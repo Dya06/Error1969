@@ -38,7 +38,7 @@ STATE_GAMEOVER = "gameover"
 STATE_TRANSITION = "transition"
 
 
-DEBUG_START_STATE = STATE_EARPHONE_NOTICE
+DEBUG_START_STATE = STATE_LEVEL3
 
 
 
@@ -304,7 +304,7 @@ def main():
                     go_to(STATE_DEATH_CUTSCENE)
 
                 elif scene.done:
-                    go_to(STATE_WIN)
+                    go_to(STATE_WIN_SCENE)
 
             elif state == STATE_DEATH_CUTSCENE and scene.done:
                 go_to(STATE_GAMEOVER)

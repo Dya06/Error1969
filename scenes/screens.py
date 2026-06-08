@@ -787,14 +787,14 @@ class GameOverScreen:
             if event.key in (pygame.K_SPACE, pygame.K_RETURN):
                 self.choice = "menu"
                 self.done = True
-                self._stop_winning_music()
+                _stop_winning_music()
             return
 
         # LOSE SCREEN: SPACE retries, M returns to menu
         if event.key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_r):
             self.choice = "retry"
             self.done = True
-            self._stop_winning_music()
+            _stop_winning_music()
             if not self.win:
                 stop_music(fade_ms=300)
                 self._stop_gameover_sfx()
@@ -802,7 +802,7 @@ class GameOverScreen:
         elif event.key == pygame.K_m:
             self.choice = "menu"
             self.done = True
-            self._stop_winning_music()
+            _stop_winning_music()
             if not self.win:
                 stop_music(fade_ms=300)
                 self._stop_gameover_sfx()
