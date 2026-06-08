@@ -262,6 +262,8 @@ class Level2:
         self.snd_monster       = load_sound("assets/audio/level2/Level2Monster.mp3")
         self.monster_sound_timer = random.randint(240, 420)
         self.snd_bite          = load_sound("assets/audio/level2/bitesound.wav")
+        self.snd_electriczap   = load_sound("assets/audio/level2/electriczap.wav")
+        self.snd_stungun_pickup = load_sound("assets/audio/level2/stungunpickedup.wav")
         self.snd_fixing        = [
             load_sound("assets/audio/level2/fixingsound1.wav"),
             load_sound("assets/audio/level2/fixingsound2.wav"),
@@ -798,6 +800,8 @@ class Level2:
                 self.stun_charges += 1
                 self.flash_msg    = "STUN GUN PICKED UP!  [F] TO FIRE"
                 self.flash_timer  = 90
+                if self.snd_stungun_pickup:
+                    self.snd_stungun_pickup.play()
                 sx, sy = self._world_to_screen(pickup["wx"], pickup["wy"])
                 spawn_particles(sx, sy, (240, 200, 40), 18, 3, 50)
 
@@ -806,6 +810,8 @@ class Level2:
             self.stun_charges  -= 1
             self.stun_cooldown  = 45
             self.shooting_timer = self.shooting_anim_speed * ASTRO3_SHOOT_COUNT
+            if self.snd_electriczap:
+                self.snd_electriczap.play()
 
             d = math.hypot(self.px - self.ex, self.py - self.ey)
             if d <= STUN_SHOOT_RANGE:

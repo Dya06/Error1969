@@ -371,7 +371,8 @@ class Level1:
         self.watcher_sector_timer = 0
         self.watcher_sector_delay = 330
         self.watcher_visible = False
-        self.heartbeat_timer = 0
+        self.heartbeat_channel = None
+        self.heartbeat_tier = None
 
         # ── Jumpscare ─────────────────────────────────
         self.jumpscare_active = False
@@ -449,7 +450,9 @@ class Level1:
 
     def _init_sounds(self):
         self.snd_collect = self._gen_tone(880, 0.12, shape="square")
-        self.snd_heartbeat = self._gen_tone(60, 0.18, shape="pulse")
+        self.snd_heartbeat_far = load_sound("assets/audio/level1/54bpmheartbeat.wav", volume=0.4)
+        self.snd_heartbeat_mid = load_sound("assets/audio/level1/75bpmheartbeat.wav", volume=0.5)
+        self.snd_heartbeat_close = load_sound("assets/audio/level1/115bpmheartbeat.wav", volume=0.6)
         self.snd_jumpscare = self._gen_noise(0.5)
         self.snd_jumpscare_caught = load_sound("assets/audio/level1/Level1JumpscareCaught.mp3")
 
@@ -688,6 +691,10 @@ class Level1:
                     self.flash_msg = "REPAIR SEQUENCE READY!"
                     self.flash_timer = 90
                     self.done = True
+                    if self.heartbeat_channel is not None:
+                        self.heartbeat_channel.stop()
+                        self.heartbeat_channel = None
+                        self.heartbeat_tier = None
             return
 
         if part_name in self.collected_parts:
@@ -727,7 +734,8 @@ class Level1:
     def _update_watcher(self):
         current = self.current_sector()
         watcher_same_sector = self.watcher_sector == current
-        watcher_nearby = self._sector_distance(self.watcher_sector, current) <= 1
+        sector_dist = self._sector_distance(self.watcher_sector, current)
+        watcher_nearby = sector_dist <= 1
 
         self.watcher_sector_timer += 1
 
@@ -735,11 +743,11 @@ class Level1:
             self.watcher_sector_timer = 0
             self._move_watcher_sector_towards_player()
 
+        d = math.hypot(self.px - self.watcher_x, self.py - self.watcher_y)
+
         if watcher_same_sector:
             self.watcher_visible = True
             self._chase_player()
-            # Proximity-based screen shake (starts shaking further away at 320px)
-            d = math.hypot(self.px - self.watcher_x, self.py - self.watcher_y)
             if d < 320:
                 shake_amount = int((320 - d) / 320 * 7)
                 if shake_amount > self.screen_shake:
@@ -747,14 +755,33 @@ class Level1:
         else:
             self.watcher_visible = False
 
-        # Heartbeat when nearby or same sector
-        self.heartbeat_timer -= 1
+        if watcher_same_sector and d < 180:
+            tier = "close"
+        elif watcher_nearby:
+            tier = "mid"
+        else:
+            tier = "far"
 
-        if watcher_nearby:
-            interval = 45 if not watcher_same_sector else 18
-            if self.heartbeat_timer <= 0:
-                self._play(self.snd_heartbeat)
-                self.heartbeat_timer = interval
+        self._update_heartbeat(tier)
+
+    def _update_heartbeat(self, tier):
+        if tier == self.heartbeat_tier:
+            return
+
+        self.heartbeat_tier = tier
+
+        if self.heartbeat_channel is not None:
+            self.heartbeat_channel.stop()
+            self.heartbeat_channel = None
+
+        snd = {
+            "far": self.snd_heartbeat_far,
+            "mid": self.snd_heartbeat_mid,
+            "close": self.snd_heartbeat_close,
+        }.get(tier)
+
+        if snd:
+            self.heartbeat_channel = snd.play(loops=-1)
 
     def _sector_distance(self, a, b):
         """Wrapped Manhattan distance between two sectors."""
@@ -903,6 +930,11 @@ class Level1:
         self.jumpscare_scale = 0.0
         self._play(self.snd_jumpscare)
         self._play(self.snd_jumpscare_caught)
+
+        if self.heartbeat_channel is not None:
+            self.heartbeat_channel.stop()
+            self.heartbeat_channel = None
+            self.heartbeat_tier = None
 
     def _update_jumpscare(self):
         self.jumpscare_timer += 1
