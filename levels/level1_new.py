@@ -80,10 +80,13 @@ OBSTACLE_MAPPING = {
     # Orange Barrier
     "dish": "orange_barrier",
     "wreckage": "orange_barrier",
-    "ship": "orange_barrier",
     "debris": "orange_barrier",
     "crystal": "orange_barrier",
     "eye_mark": "orange_barrier",
+
+    # Crashed Spaceship Wreckage
+    "ship": "crashed_ship",
+    "crashed_ship": "crashed_ship",
 }
 
 
@@ -193,9 +196,9 @@ SECTOR_DATA = {
         "part_pos": None,
         "danger": 0.18,
         "obstacles": [
-            {"kind": "beacon", "x": 385, "y": 250, "w": 65, "h": 120},
-            {"kind": "rock", "x": 150, "y": 390, "w": 85, "h": 52},
-            {"kind": "rock", "x": 600, "y": 405, "w": 80, "h": 48},
+            {"kind": "crashed_ship", "x": 270, "y": 120, "w": 260, "h": 200},
+            {"kind": "rock", "x": 130, "y": 450, "w": 85, "h": 52},
+            {"kind": "rock", "x": 600, "y": 450, "w": 80, "h": 48},
         ],
     },
 
@@ -356,6 +359,8 @@ class Level1:
         self.t = 0
         self.immune_timer = 0
         self.screen_shake = 0
+        self.glitch_timer = 0
+        self.glitch_active_frames = 0
 
         # ── Watcher state ─────────────────────────────
         self.watcher_sector = (1, 1)  # B2
@@ -418,7 +423,7 @@ class Level1:
 
         # Load custom colored obstacle assets
         self.obstacle_imgs = {}
-        for name in ["blue_barrel", "green_crate", "orange_barrier"]:
+        for name in ["blue_barrel", "green_crate", "orange_barrier", "crashed_ship"]:
             try:
                 img = pygame.image.load(f"assets/images/{name}.png").convert_alpha()
                 self.obstacle_imgs[name] = img
@@ -537,14 +542,27 @@ class Level1:
         if self.screen_shake > 0:
             self.screen_shake -= 1
 
+        # Glitch effect timing (subtle horizontal jitter every few seconds)
+        self.glitch_timer += 1
+        if self.glitch_active_frames > 0:
+            self.glitch_active_frames -= 1
+        elif self.glitch_timer > 210:  # ~3.5 seconds at 60fps
+            if random.random() < 0.015:  # small chance once timer expires
+                self.glitch_active_frames = random.randint(3, 7)  # lasts 3-7 frames
+                self.glitch_timer = 0
+
         self._update_player()
         self._update_part_collection()
         self._update_watcher()
 
     def _apply_shake_offset(self):
-        if self.screen_shake <= 0:
-            return 0, 0
-        return random.randint(-self.screen_shake, self.screen_shake), random.randint(-self.screen_shake, self.screen_shake)
+        ox, oy = 0, 0
+        if self.screen_shake > 0:
+            ox += random.randint(-self.screen_shake, self.screen_shake)
+            oy += random.randint(-self.screen_shake, self.screen_shake)
+        if self.glitch_active_frames > 0:
+            ox += random.randint(-8, 8)  # horizontal jitter shift during glitch
+        return ox, oy
 
     def _update_player(self):
         keys = pygame.key.get_pressed()
@@ -594,7 +612,9 @@ class Level1:
 
     def _obstacle_collision_shape(self, ob):
         """Get the actual uniform rect/circle used for collision and drawing (no stretching)."""
-        size = 80
+        kind = ob["kind"]
+        img_key = OBSTACLE_MAPPING.get(kind, "green_crate")
+        size = 240 if img_key == "crashed_ship" else 80
         if is_circle_obstacle(ob):
             # Returns (center_x, center_y, radius)
             return (ob["x"], ob["y"], size // 2)
@@ -718,10 +738,10 @@ class Level1:
         if watcher_same_sector:
             self.watcher_visible = True
             self._chase_player()
-            # Proximity-based screen shake
+            # Proximity-based screen shake (starts shaking further away at 320px)
             d = math.hypot(self.px - self.watcher_x, self.py - self.watcher_y)
-            if d < 180:
-                shake_amount = int((180 - d) / 180 * 6)
+            if d < 320:
+                shake_amount = int((320 - d) / 320 * 7)
                 if shake_amount > self.screen_shake:
                     self.screen_shake = shake_amount
         else:
@@ -940,6 +960,16 @@ class Level1:
         self._draw_scanlines(surf)
         self._draw_transition_overlay(surf)
 
+        # Draw subtle color aberration lines during screen glitch
+        if self.glitch_active_frames > 0:
+            glitch_surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+            for _ in range(random.randint(2, 5)):
+                gy = random.randint(PLAY_TOP, SCREEN_H - 12)
+                gh = random.randint(1, 4)
+                color = (0, 255, 255, 80) if random.random() < 0.5 else (255, 0, 128, 80)
+                pygame.draw.rect(glitch_surf, color, (0, gy, SCREEN_W, gh))
+            surf.blit(glitch_surf, (0, 0))
+
     def _draw_sector_background(self, surf, ox, oy):
         info = self.sector_info()
         code = info["code"]
@@ -967,8 +997,36 @@ class Level1:
             pygame.draw.ellipse(surf, (55, 55, 65), (x + ox, y + oy, 7, 3))
             pygame.draw.ellipse(surf, (50, 50, 60), (x + 12 + ox, y + 7 + oy, 7, 3))
 
-        # Atmospheric colored glows removed
-        pass
+        # Dynamic lunar surface textures: tiny craters, cracks, and dust layers
+        for _ in range(25):
+            x = rng.randint(20, SCREEN_W - 20)
+            y = rng.randint(PLAY_TOP + 20, SCREEN_H - 20)
+            r = rng.randint(2, 6)
+            pygame.draw.circle(surf, (45, 45, 55), (x + ox, y + oy), r, 1)
+            pygame.draw.circle(surf, (30, 30, 40), (x + ox + 1, y + oy + 1), r - 1, 1)
+            
+        # Scattered tiny lunar rocks / debris
+        for _ in range(12):
+            x = rng.randint(30, SCREEN_W - 30)
+            y = rng.randint(PLAY_TOP + 30, SCREEN_H - 30)
+            size = rng.randint(3, 8)
+            pygame.draw.polygon(surf, (60, 60, 75), [
+                (x + ox, y + oy),
+                (x + size + ox, y - size//2 + oy),
+                (x + size + ox, y + size + oy),
+                (x - size//2 + ox, y + size + oy)
+            ])
+            pygame.draw.polygon(surf, (40, 40, 50), [
+                (x + ox, y + oy),
+                (x + size + ox, y + size + oy),
+                (x - size//2 + ox, y + size + oy)
+            ], 1)
+            
+        # Terminal coordinate hud telemetry on the ground
+        col, row = self.current_sector()
+        code = info["code"]
+        draw_text(surf, f"COORD: {col*200:04d}m, {row*200:04d}m", font_tiny, (60, 60, 80), 110, PLAY_TOP + 25, 120)
+        draw_text(surf, f"SYS_LOC: SECTOR_{code}_L1", font_tiny, (60, 60, 80), SCREEN_W - 130, SCREEN_H - 25, 120)
 
     def _draw_obstacles(self, surf, ox, oy):
         for ob in self.sector_info()["obstacles"]:
@@ -980,10 +1038,18 @@ class Level1:
         img = self.obstacle_imgs.get(img_key)
 
         shape = self._obstacle_collision_shape(ob)
-        size = 80
+        size = 240 if img_key == "crashed_ship" else 80
 
         if isinstance(shape, tuple):
             cx, cy, r = shape
+            
+            # Draw drop shadow beneath circular/barrel obstacles (not for crashed spaceship)
+            if img_key != "crashed_ship":
+                shadow_h = size // 5
+                shadow_surf = pygame.Surface((size, shadow_h), pygame.SRCALPHA)
+                pygame.draw.ellipse(shadow_surf, (0, 0, 0, 80), (0, 0, size, shadow_h))
+                surf.blit(shadow_surf, (cx - size // 2 + ox, cy + size // 2 - shadow_h + 4 + oy))
+            
             if img:
                 scaled_img = pygame.transform.smoothscale(img, (size, size))
                 surf.blit(scaled_img, (cx - size // 2 + ox, cy - size // 2 + oy))
@@ -991,6 +1057,14 @@ class Level1:
                 pygame.draw.circle(surf, (150, 150, 50), (cx + ox, cy + oy), r)
         else:
             rect = shape
+            
+            # Draw drop shadow beneath rectangular/crate obstacles (not for crashed spaceship)
+            if img_key != "crashed_ship":
+                shadow_h = size // 5
+                shadow_surf = pygame.Surface((size, shadow_h), pygame.SRCALPHA)
+                pygame.draw.ellipse(shadow_surf, (0, 0, 0, 80), (0, 0, size, shadow_h))
+                surf.blit(shadow_surf, (rect.x + ox, rect.y + size - shadow_h + 4 + oy))
+            
             if img:
                 # Check if vertical orientation in design, rotate if so
                 orig_rect = rect_from_obstacle(ob)
@@ -1067,22 +1141,22 @@ class Level1:
 
         if is_dark:
             darkness = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            darkness.fill((0, 0, 0, 195))
+            darkness.fill((0, 0, 0, 165))  # Brighter darkness fill (165 alpha instead of 195)
 
-            # Base visibility radius
-            light_radius = 145
+            # Base visibility radius (increased from 145 to 165 for brighter playfield)
+            light_radius = 165
             if dist == 0:  # Same sector
                 w_dist = math.hypot(self.px - self.watcher_x, self.py - self.watcher_y)
-                if w_dist < 300:
-                    # Constricts visible radius from 145 down to 80 when Watcher draws near
-                    light_radius = int(lerp(80, 145, clamp(w_dist / 300, 0.0, 1.0)))
+                if w_dist < 320:
+                    # Constricts visible radius from 165 down to 115 when Watcher draws near
+                    light_radius = int(lerp(115, 165, clamp(w_dist / 320, 0.0, 1.0)))
 
             # Concentric transparent cuts centered on player
             for radius, alpha in [
                 (light_radius, 0),
-                (light_radius + 35, 65),
-                (light_radius + 70, 125),
-                (light_radius + 105, 195),
+                (light_radius + 35, 55),
+                (light_radius + 70, 105),
+                (light_radius + 105, 165),
             ]:
                 pygame.draw.circle(
                     darkness,
@@ -1092,17 +1166,11 @@ class Level1:
                 )
             surf.blit(darkness, (0, 0))
 
-        if dist <= 1:
-            overlay = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            alpha = 40 if dist == 1 else 85
-            overlay.fill((80, 0, 120, alpha))
-            surf.blit(overlay, (0, 0))
-
         if self.watcher_visible:
             d = math.hypot(self.px - self.watcher_x, self.py - self.watcher_y)
-            if d < 180:
+            if d < 320:  # Starts warning pulsing further away (320px instead of 180px)
                 overlay = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-                alpha = int(clamp((180 - d) / 180 * 120, 0, 120))
+                alpha = int(clamp((320 - d) / 320 * 120, 0, 120))
                 overlay.fill((130, 0, 0, alpha))
                 surf.blit(overlay, (0, 0))
 
