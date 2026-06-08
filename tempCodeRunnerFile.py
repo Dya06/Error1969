@@ -1,0 +1,2 @@
+
+STATE_TRANSITION = "transition"
