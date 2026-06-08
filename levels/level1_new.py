@@ -386,6 +386,7 @@ class Level1:
 
         # ── Sounds ────────────────────────────────────
         self._init_sounds()
+        play_music("assets/audio/level1/level1bgmusic.wav", loops=-1, volume=0.5)
 
         # ── Image Assets & Sprites (No hardcoded graphics) ──
         self.sector_imgs = {}
@@ -691,6 +692,7 @@ class Level1:
                     self.flash_msg = "REPAIR SEQUENCE READY!"
                     self.flash_timer = 90
                     self.done = True
+                    stop_music(fade_ms=500)
                     if self.heartbeat_channel is not None:
                         self.heartbeat_channel.stop()
                         self.heartbeat_channel = None
@@ -930,6 +932,7 @@ class Level1:
         self.jumpscare_scale = 0.0
         self._play(self.snd_jumpscare)
         self._play(self.snd_jumpscare_caught)
+        stop_music(fade_ms=300)
 
         if self.heartbeat_channel is not None:
             self.heartbeat_channel.stop()

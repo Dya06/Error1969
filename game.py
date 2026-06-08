@@ -22,7 +22,6 @@ screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
 pygame.display.set_caption(GAME_TITLE)
 clock = pygame.time.Clock()
 
-
 STATE_EARPHONE_NOTICE = "earphone_notice"
 STATE_TITLE = "title"
 STATE_INTRO = "intro"
@@ -134,10 +133,13 @@ def main():
     death_started = False
 
     def start_state(s):
-        nonlocal state, scene, death_started
+        nonlocal state, scene, death_started, last_level_state
 
         state = s
         death_started = False
+
+        if s in (STATE_LEVEL1, STATE_LEVEL2, STATE_LEVEL3):
+            last_level_state = s
 
         if s == STATE_EARPHONE_NOTICE:
             scene = EarphoneNotice()
@@ -193,7 +195,8 @@ def main():
             scene = TextScene(
                 WIN_LINES,
                 title="VICTORY",
-                speaker="MISSION CONTROL"
+                speaker="MISSION CONTROL",
+                play_winning_music=True
             )
 
         elif s == STATE_WIN:
@@ -271,7 +274,6 @@ def main():
                 go_to(STATE_CUTSCENE1)
 
             elif state == STATE_CUTSCENE1 and scene.done:
-                last_level_state = STATE_LEVEL1
                 go_to(STATE_LEVEL1)
 
             elif state == STATE_LEVEL1:
@@ -283,7 +285,6 @@ def main():
                     go_to(STATE_CUTSCENE2)
 
             elif state == STATE_CUTSCENE2 and scene.done:
-                last_level_state = STATE_LEVEL2
                 go_to(STATE_LEVEL2)
 
             elif state == STATE_LEVEL2:
@@ -295,7 +296,6 @@ def main():
                     go_to(STATE_CUTSCENE3)
 
             elif state == STATE_CUTSCENE3 and scene.done:
-                last_level_state = STATE_LEVEL3
                 go_to(STATE_LEVEL3)
 
             elif state == STATE_LEVEL3:
@@ -304,7 +304,7 @@ def main():
                     go_to(STATE_DEATH_CUTSCENE)
 
                 elif scene.done:
-                    go_to(STATE_WIN)
+                    go_to(STATE_WIN_SCENE)
 
             elif state == STATE_DEATH_CUTSCENE and scene.done:
                 go_to(STATE_GAMEOVER)
