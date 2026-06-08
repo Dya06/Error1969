@@ -444,6 +444,53 @@ class TextScene:
         surf.blit(fade, (0, 0))
 
 # ─────────────────────────────────────────────
+#  EARPHONE NOTICE
+# ─────────────────────────────────────────────
+class EarphoneNotice:
+    def __init__(self):
+        self.t = 0
+        self.done = False
+        self.fade_in = 0
+        self.hold_timer = 200
+        self.fading_out = False
+        self.fade_out = 0
+
+    def handle_event(self, event):
+        if event.type == pygame.KEYDOWN and event.key in (pygame.K_SPACE, pygame.K_RETURN):
+            self.fading_out = True
+
+    def update(self):
+        self.t += 1
+
+        if self.fade_in < 255:
+            self.fade_in = min(255, self.fade_in + 8)
+
+        if not self.fading_out:
+            self.hold_timer -= 1
+            if self.hold_timer <= 0:
+                self.fading_out = True
+
+        if self.fading_out:
+            self.fade_out = min(255, self.fade_out + 8)
+            if self.fade_out >= 255:
+                self.done = True
+
+    def draw(self, surf):
+        surf.fill(BLACK)
+
+        draw_text(surf, "THIS GAME IS BEST PLAYED WITH EARPHONES",
+                  font_med, WHITE, SCREEN_W // 2, SCREEN_H // 2, self.fade_in)
+
+        draw_text(surf, "PRESS SPACE TO CONTINUE",
+                  font_tiny, (140, 140, 150), SCREEN_W // 2, SCREEN_H // 2 + 40, self.fade_in)
+
+        if self.fade_out > 0:
+            fade = pygame.Surface((SCREEN_W, SCREEN_H))
+            fade.fill(BLACK)
+            fade.set_alpha(self.fade_out)
+            surf.blit(fade, (0, 0))
+
+# ─────────────────────────────────────────────
 #  TITLE SCREEN
 # ─────────────────────────────────────────────
 class TitleScreen:
