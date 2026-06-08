@@ -5,7 +5,7 @@ import sys
 import random
 
 from settings import *
-from scenes.screens import TextScene, TitleScreen, GameOverScreen, Transition, DeathCutscene
+from scenes.screens import TextScene, TitleScreen, GameOverScreen, Transition, DeathCutscene, EarphoneNotice
 from scenes.cutscene_visuals import (
     intro_draw,
     cutscene1_draw,
@@ -23,6 +23,7 @@ pygame.display.set_caption(GAME_TITLE)
 clock = pygame.time.Clock()
 
 
+STATE_EARPHONE_NOTICE = "earphone_notice"
 STATE_TITLE = "title"
 STATE_INTRO = "intro"
 STATE_CUTSCENE1 = "cutscene1"
@@ -38,7 +39,7 @@ STATE_GAMEOVER = "gameover"
 STATE_TRANSITION = "transition"
 
 
-DEBUG_START_STATE = STATE_TITLE
+DEBUG_START_STATE = STATE_EARPHONE_NOTICE
 
 
 
@@ -138,7 +139,10 @@ def main():
         state = s
         death_started = False
 
-        if s == STATE_TITLE:
+        if s == STATE_EARPHONE_NOTICE:
+            scene = EarphoneNotice()
+
+        elif s == STATE_TITLE:
             scene = TitleScreen()
 
         elif s == STATE_INTRO:
@@ -257,7 +261,10 @@ def main():
             # STATE TRANSITIONS
             # ─────────────────────────────────────────
 
-            if state == STATE_TITLE and scene.done:
+            if state == STATE_EARPHONE_NOTICE and scene.done:
+                go_to(STATE_TITLE)
+
+            elif state == STATE_TITLE and scene.done:
                 go_to(STATE_INTRO)
 
             elif state == STATE_INTRO and scene.done:
