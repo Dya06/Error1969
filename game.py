@@ -5,7 +5,7 @@ import sys
 import random
 
 from settings import *
-from scenes.screens import TextScene, TitleScreen, GameOverScreen, Transition, DeathCutscene
+from scenes.screens import TextScene, TitleScreen, GameOverScreen, Transition, DeathCutscene, EarphoneNotice
 from scenes.cutscene_visuals import (
     intro_draw,
     cutscene1_draw,
@@ -141,7 +141,10 @@ def main():
         if s in (STATE_LEVEL1, STATE_LEVEL2, STATE_LEVEL3):
             last_level_state = s
 
-        if s == STATE_TITLE:
+        if s == STATE_EARPHONE_NOTICE:
+            scene = EarphoneNotice()
+
+        elif s == STATE_TITLE:
             scene = TitleScreen()
 
         elif s == STATE_INTRO:
@@ -261,7 +264,10 @@ def main():
             # STATE TRANSITIONS
             # ─────────────────────────────────────────
 
-            if state == STATE_TITLE and scene.done:
+            if state == STATE_EARPHONE_NOTICE and scene.done:
+                go_to(STATE_TITLE)
+
+            elif state == STATE_TITLE and scene.done:
                 go_to(STATE_INTRO)
 
             elif state == STATE_INTRO and scene.done:
