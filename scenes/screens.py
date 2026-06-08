@@ -10,12 +10,28 @@ from graphics.sprites import draw_ship
 from core.particles import spawn_particles, update_particles
 
 _gameover_sfx_channel = None
+_winning_channel = None
+
+def _start_winning_music():
+    global _winning_channel
+    if _winning_channel is not None and _winning_channel.get_busy():
+        return _winning_channel
+    snd = load_sound("assets/audio/WinningScreen.ogg", volume=0.5)
+    if snd:
+        _winning_channel = snd.play(loops=-1)
+    return _winning_channel
+
+def _stop_winning_music():
+    global _winning_channel
+    if _winning_channel is not None:
+        _winning_channel.stop()
+        _winning_channel = None
 
 class TextScene:
 
     def __init__(self, lines, next_state=None, title="MISSION LOG", speaker="APOLLO ARCHIVE",
                  music_path=None, music_volume=0.5, stop_music_on_finish=None,
-                 line_sounds=None, line_sound_range=None):
+                 line_sounds=None, line_sound_range=None, play_winning_music=False):
         # Clean old cutscene data so functions like intro_draw do not appear as text
         cleaned_lines = []
 
@@ -75,6 +91,9 @@ class TextScene:
             self.range_sound = load_sound(path)
             self.range_start = start_idx
             self.range_end = end_idx
+
+        if play_winning_music:
+            _start_winning_music()
 
         self.star_seed = random.randint(1000, 9999)
         self.warning_pulse = 0
@@ -750,17 +769,8 @@ class GameOverScreen:
         self.font_small2 = pygame.font.Font(None, 22)
         self.font_tiny2 = pygame.font.Font(None, 16)
 
-        self._winning_channel = None
-
         if self.win:
-            snd = load_sound("assets/audio/WinningScreen.ogg", volume=0.5)
-            if snd:
-                self._winning_channel = snd.play(loops=-1)
-
-    def _stop_winning_music(self):
-        if self._winning_channel is not None:
-            self._winning_channel.stop()
-            self._winning_channel = None
+            _start_winning_music()
 
     def _stop_gameover_sfx(self):
         global _gameover_sfx_channel
@@ -776,7 +786,7 @@ class GameOverScreen:
         if event.key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_r):
             self.choice = "retry"
             self.done = True
-            self._stop_winning_music()
+            _stop_winning_music()
             if not self.win:
                 stop_music(fade_ms=300)
                 self._stop_gameover_sfx()
@@ -785,7 +795,7 @@ class GameOverScreen:
         elif event.key == pygame.K_m:
             self.choice = "menu"
             self.done = True
-            self._stop_winning_music()
+            _stop_winning_music()
             if not self.win:
                 stop_music(fade_ms=300)
                 self._stop_gameover_sfx()
