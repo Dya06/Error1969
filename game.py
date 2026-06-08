@@ -22,7 +22,7 @@ screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
 pygame.display.set_caption(GAME_TITLE)
 clock = pygame.time.Clock()
 
-
+STATE_EARPHONE_NOTICE = "earphone_notice"
 STATE_TITLE = "title"
 STATE_INTRO = "intro"
 STATE_CUTSCENE1 = "cutscene1"
