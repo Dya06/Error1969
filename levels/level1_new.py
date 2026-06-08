@@ -355,6 +355,7 @@ class Level1:
         self.lose = False
         self.t = 0
         self.immune_timer = 0
+        self.screen_shake = 0
 
         # ── Watcher state ─────────────────────────────
         self.watcher_sector = (1, 1)  # B2
@@ -401,7 +402,16 @@ class Level1:
                 print(f"[WARNING] Failed to load sprite {path}: {e}")
                 return None
 
-        self.watcher_img = load_transparent_img("assets/images/watcher.png")
+        # Load Watcher walking frames
+        self.watcher_frames = []
+        for i in range(5):
+            path = f"assets/images/watcher_walk{i}.png"
+            try:
+                img = pygame.image.load(path).convert_alpha()
+                img = pygame.transform.smoothscale(img, (72, 96))
+                self.watcher_frames.append(img)
+            except Exception as e:
+                print(f"[ERROR] Failed to load {path}: {e}")
         self.rock_img = load_transparent_img("assets/images/rock.png")
         self.crater_img = load_transparent_img("assets/images/crater.png")
         self.debris_img = load_transparent_img("assets/images/debris.png")
@@ -519,13 +529,22 @@ class Level1:
 
         if self.transition_timer > 0:
             self.transition_timer -= 1
+            return  # Freeze player/enemy updates during sector transition fade!
 
         if self.immune_timer > 0:
             self.immune_timer -= 1
 
+        if self.screen_shake > 0:
+            self.screen_shake -= 1
+
         self._update_player()
         self._update_part_collection()
         self._update_watcher()
+
+    def _apply_shake_offset(self):
+        if self.screen_shake <= 0:
+            return 0, 0
+        return random.randint(-self.screen_shake, self.screen_shake), random.randint(-self.screen_shake, self.screen_shake)
 
     def _update_player(self):
         keys = pygame.key.get_pressed()
@@ -671,6 +690,7 @@ class Level1:
             )
 
             self._play(self.snd_collect)
+            self.screen_shake = 12
 
             # Make Watcher angrier
             self.watcher_speed = 1.1 + 0.12 * len(self.collected_parts)
@@ -698,6 +718,12 @@ class Level1:
         if watcher_same_sector:
             self.watcher_visible = True
             self._chase_player()
+            # Proximity-based screen shake
+            d = math.hypot(self.px - self.watcher_x, self.py - self.watcher_y)
+            if d < 180:
+                shake_amount = int((180 - d) / 180 * 6)
+                if shake_amount > self.screen_shake:
+                    self.screen_shake = shake_amount
         else:
             self.watcher_visible = False
 
@@ -861,6 +887,7 @@ class Level1:
     def _update_jumpscare(self):
         self.jumpscare_timer += 1
         t = self.jumpscare_timer
+        self.screen_shake = 14
 
         if t < 40:
             self.jumpscare_scale = t / 40
@@ -883,13 +910,15 @@ class Level1:
             self._draw_jumpscare(surf)
             return
 
-        self._draw_sector_background(surf)
-        self._draw_sector_details(surf)
-        self._draw_obstacles(surf)
-        self._draw_part(surf)
+        ox, oy = self._apply_shake_offset()
+
+        self._draw_sector_background(surf, ox, oy)
+        self._draw_sector_details(surf, ox, oy)
+        self._draw_obstacles(surf, ox, oy)
+        self._draw_part(surf, ox, oy)
 
         if self.watcher_visible:
-            self._draw_watcher(surf)
+            self._draw_watcher(surf, ox, oy)
 
         # Draw player astronaut using image frames
         if self.astro_frames:
@@ -897,10 +926,10 @@ class Level1:
             img = self.astro_frames[frame_index]
             if self.facing == -1:
                 img = pygame.transform.flip(img, True, False)
-            rect = img.get_rect(center=(int(self.px), int(self.py)))
+            rect = img.get_rect(center=(int(self.px + ox), int(self.py + oy)))
             surf.blit(img, rect)
         else:
-            draw_astronaut(surf, int(self.px), int(self.py), self.player_frame, self.facing)
+            draw_astronaut(surf, int(self.px + ox), int(self.py + oy), self.player_frame, self.facing)
 
         update_particles(surf)
 
@@ -911,12 +940,12 @@ class Level1:
         self._draw_scanlines(surf)
         self._draw_transition_overlay(surf)
 
-    def _draw_sector_background(self, surf):
+    def _draw_sector_background(self, surf, ox, oy):
         info = self.sector_info()
         code = info["code"]
         img = self.sector_imgs.get(code)
         if img:
-            surf.blit(img, (0, 0))
+            surf.blit(img, (ox, oy))
         else:
             surf.fill((34, 34, 42))
 
@@ -924,9 +953,9 @@ class Level1:
         pygame.draw.rect(surf, (4, 4, 12), (0, 0, SCREEN_W, PLAY_TOP))
 
         # Sector border lines like screen tiles / Faith-ish framing
-        pygame.draw.rect(surf, (70, 70, 85), (0, PLAY_TOP, SCREEN_W, SCREEN_H - PLAY_TOP), 1)
+        pygame.draw.rect(surf, (70, 70, 85), (ox, PLAY_TOP + oy, SCREEN_W, SCREEN_H - PLAY_TOP), 1)
 
-    def _draw_sector_details(self, surf):
+    def _draw_sector_details(self, surf, ox, oy):
         info = self.sector_info()
         theme = info["theme"]
 
@@ -935,17 +964,17 @@ class Level1:
         for _ in range(8):
             x = rng.randint(80, SCREEN_W - 80)
             y = rng.randint(PLAY_TOP + 70, SCREEN_H - 70)
-            pygame.draw.ellipse(surf, (55, 55, 65), (x, y, 7, 3))
-            pygame.draw.ellipse(surf, (50, 50, 60), (x + 12, y + 7, 7, 3))
+            pygame.draw.ellipse(surf, (55, 55, 65), (x + ox, y + oy, 7, 3))
+            pygame.draw.ellipse(surf, (50, 50, 60), (x + 12 + ox, y + 7 + oy, 7, 3))
 
         # Atmospheric colored glows removed
         pass
 
-    def _draw_obstacles(self, surf):
+    def _draw_obstacles(self, surf, ox, oy):
         for ob in self.sector_info()["obstacles"]:
-            self._draw_obstacle(surf, ob)
+            self._draw_obstacle(surf, ob, ox, oy)
 
-    def _draw_obstacle(self, surf, ob):
+    def _draw_obstacle(self, surf, ob, ox, oy):
         kind = ob["kind"]
         img_key = OBSTACLE_MAPPING.get(kind, "green_crate")
         img = self.obstacle_imgs.get(img_key)
@@ -957,9 +986,9 @@ class Level1:
             cx, cy, r = shape
             if img:
                 scaled_img = pygame.transform.smoothscale(img, (size, size))
-                surf.blit(scaled_img, (cx - size // 2, cy - size // 2))
+                surf.blit(scaled_img, (cx - size // 2 + ox, cy - size // 2 + oy))
             else:
-                pygame.draw.circle(surf, (150, 150, 50), (cx, cy), r)
+                pygame.draw.circle(surf, (150, 150, 50), (cx + ox, cy + oy), r)
         else:
             rect = shape
             if img:
@@ -969,11 +998,11 @@ class Level1:
                 if orig_rect.h > orig_rect.w and img_key in ["blue_barrel", "green_crate"]:
                     draw_img = pygame.transform.rotate(img, 90)
                 scaled_img = pygame.transform.smoothscale(draw_img, (size, size))
-                surf.blit(scaled_img, rect.topleft)
+                surf.blit(scaled_img, (rect.x + ox, rect.y + oy))
             else:
-                pygame.draw.rect(surf, (150, 150, 50), rect)
+                pygame.draw.rect(surf, (150, 150, 50), (rect.x + ox, rect.y + oy, rect.w, rect.h))
 
-    def _draw_part(self, surf):
+    def _draw_part(self, surf, ox, oy):
         info = self.sector_info()
         part_name = info["part"]
 
@@ -988,10 +1017,10 @@ class Level1:
         glow_r = int(26 + 8 * pulse)
         glow = pygame.Surface((glow_r * 2, glow_r * 2), pygame.SRCALPHA)
         pygame.draw.circle(glow, (255, 220, 60, 70), (glow_r, glow_r), glow_r)
-        surf.blit(glow, (x - glow_r, y - glow_r))
+        surf.blit(glow, (x - glow_r + ox, y - glow_r + oy))
 
         # Existing detailed part drawer
-        draw_ship_part(surf, x, y, part_type)
+        draw_ship_part(surf, x + ox, y + oy, part_type)
 
         if math.hypot(self.px - x, self.py - y) < 75:
             draw_text(
@@ -999,25 +1028,69 @@ class Level1:
                 f"RECOVER {part_name}",
                 font_tiny,
                 GOLD,
-                x,
-                y - 45
+                x + ox,
+                y - 45 + oy
             )
 
-    def _draw_watcher(self, surf):
+    def _draw_watcher(self, surf, ox, oy):
         wx = int(self.watcher_x)
         wy = int(self.watcher_y)
-        t = self.watcher_frame * 0.05
-        bob = int(4 * math.sin(t))
-        if self.watcher_img:
-            scaled_img = pygame.transform.scale(self.watcher_img, (72, 72))
-            rect = scaled_img.get_rect(center=(wx, wy + bob))
-            surf.blit(scaled_img, rect)
+
+        # 1. Pulsing organic aura backdrop
+        pulse = 0.5 + 0.5 * math.sin(self.t * 0.1)
+        base_radius = 45 + 15 * pulse
+        for r_offset, alpha in [(0, 48), (12, 32), (24, 18), (36, 8)]:
+            r = int(base_radius + r_offset)
+            aura_surf = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+            pygame.draw.circle(aura_surf, (140, 0, 70, alpha), (r, r), r)
+            surf.blit(aura_surf, (wx + ox - r, wy + oy - r))
+
+        # 2. Watcher walk frame animation
+        if self.watcher_frames:
+            frame_idx = (self.watcher_frame // 6) % len(self.watcher_frames)
+            img = self.watcher_frames[frame_idx]
+            # Flip relative to player: if player is to left of watcher, face left (flip True)
+            if self.px < self.watcher_x:
+                img = pygame.transform.flip(img, True, False)
+            rect = img.get_rect(center=(wx + ox, wy + oy))
+            surf.blit(img, rect)
         else:
-            draw_watcher(surf, wx, wy, self.watcher_frame)
+            draw_watcher(surf, wx + ox, wy + oy, self.watcher_frame)
 
     def _draw_danger_overlay(self, surf):
         current = self.current_sector()
         dist = self._sector_distance(self.watcher_sector, current)
+        info = self.sector_info()
+
+        # Constricting vignette flashlight overlay in dark sectors (danger >= 0.30) or when Watcher is nearby
+        is_dark = info.get("danger", 0.1) >= 0.30 or dist <= 1
+
+        if is_dark:
+            darkness = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+            darkness.fill((0, 0, 0, 195))
+
+            # Base visibility radius
+            light_radius = 145
+            if dist == 0:  # Same sector
+                w_dist = math.hypot(self.px - self.watcher_x, self.py - self.watcher_y)
+                if w_dist < 300:
+                    # Constricts visible radius from 145 down to 80 when Watcher draws near
+                    light_radius = int(lerp(80, 145, clamp(w_dist / 300, 0.0, 1.0)))
+
+            # Concentric transparent cuts centered on player
+            for radius, alpha in [
+                (light_radius, 0),
+                (light_radius + 35, 65),
+                (light_radius + 70, 125),
+                (light_radius + 105, 195),
+            ]:
+                pygame.draw.circle(
+                    darkness,
+                    (0, 0, 0, alpha),
+                    (int(self.px), int(self.py)),
+                    radius
+                )
+            surf.blit(darkness, (0, 0))
 
         if dist <= 1:
             overlay = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
@@ -1216,7 +1289,8 @@ class Level1:
         else:
             surf.fill((0, 0, 0))
 
-        cx, cy = SCREEN_W // 2, SCREEN_H // 2 - 30
+        ox, oy = self._apply_shake_offset()
+        cx, cy = SCREEN_W // 2 + ox, SCREEN_H // 2 - 30 + oy
         size = int(scale * 260)
 
         if size > 10:
@@ -1252,8 +1326,8 @@ class Level1:
                 "IT FOUND YOU",
                 font_huge,
                 (pulse, 0, 0),
-                SCREEN_W // 2,
-                SCREEN_H - 120,
+                SCREEN_W // 2 + ox,
+                SCREEN_H - 120 + oy,
                 text_alpha
             )
 
@@ -1262,8 +1336,8 @@ class Level1:
                 "THE WATCHER SEES ALL",
                 font_med,
                 (180, 0, 0),
-                SCREEN_W // 2,
-                SCREEN_H - 60,
+                SCREEN_W // 2 + ox,
+                SCREEN_H - 60 + oy,
                 text_alpha
             )
 
