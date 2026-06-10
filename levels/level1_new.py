@@ -37,8 +37,8 @@ WATCHER_RADIUS = 30
 # Player starts at B4 = col 3, row 1
 START_SECTOR = (3, 1)
 
-# Crash site is also D2
-CRASH_SITE_SECTOR = (1, 3)
+# Crash site is the starting sector B4
+CRASH_SITE_SECTOR = START_SECTOR
 
 
 # ─────────────────────────────────────────────
@@ -190,8 +190,8 @@ SECTOR_DATA = {
     },
     (3, 1): {
         "code": "B4",
-        "name": "DEAD BEACON",
-        "theme": "beacon",
+        "name": "CRASH SITE",
+        "theme": "crash",
         "part": None,
         "part_pos": None,
         "danger": 0.18,
@@ -269,13 +269,12 @@ SECTOR_DATA = {
     },
     (1, 3): {
         "code": "D2",
-        "name": "CRASH SITE",
-        "theme": "crash",
+        "name": "DEBRIS FIELD",
+        "theme": "debris",
         "part": None,
         "part_pos": None,
         "danger": 0.12,
         "obstacles": [
-            {"kind": "ship", "x": 320, "y": 300, "w": 150, "h": 120},
             {"kind": "debris", "x": 145, "y": 415, "w": 120, "h": 55},
             {"kind": "debris", "x": 575, "y": 420, "w": 110, "h": 52},
         ],
@@ -447,7 +446,7 @@ class Level1:
             path = f"assets/images/monsters/astronaut/ASTRO{i}.png"
             try:
                 img = pygame.image.load(path).convert_alpha()
-                img = pygame.transform.smoothscale(img, (96, 96))
+                img = pygame.transform.scale(img, (72, 96))
                 self.astro_frames.append(img)
             except Exception as e:
                 print(f"[ERROR] Failed to load ASTRO{i}.png: {e}")
@@ -626,7 +625,12 @@ class Level1:
         """Get the actual uniform rect/circle used for collision and drawing (no stretching)."""
         kind = ob["kind"]
         img_key = OBSTACLE_MAPPING.get(kind, "green_crate")
-        size = 250 if img_key == "crashed_ship" else 50
+        if img_key == "crashed_ship":
+            size = 180
+        elif img_key == "green_crate":
+            size = 85
+        else:
+            size = 65
         if is_circle_obstacle(ob):
             # Returns (center_x, center_y, radius)
             return (ob["x"], ob["y"], size // 2)
@@ -696,15 +700,17 @@ class Level1:
         if part_name is None:
             # Finish condition: all parts collected and player returns to Crash Site.
             if self.all_parts_collected() and self.current_sector() == CRASH_SITE_SECTOR:
-                if math.hypot(self.px - 400, self.py - 330) < 110:
-                    self.flash_msg = "REPAIR SEQUENCE READY!"
-                    self.flash_timer = 90
-                    self.done = True
-                    stop_music(fade_ms=500)
-                    if self.heartbeat_channel is not None:
-                        self.heartbeat_channel.stop()
-                        self.heartbeat_channel = None
-                        self.heartbeat_tier = None
+                if math.hypot(self.px - 400, self.py - 330) < 130:
+                    keys = pygame.key.get_pressed()
+                    if keys[pygame.K_e]:
+                        self.flash_msg = "REPAIR SEQUENCE READY!"
+                        self.flash_timer = 90
+                        self.done = True
+                        stop_music(fade_ms=500)
+                        if self.heartbeat_channel is not None:
+                            self.heartbeat_channel.stop()
+                            self.heartbeat_channel = None
+                            self.heartbeat_tier = None
             return
 
         if part_name in self.collected_parts:
@@ -998,6 +1004,15 @@ class Level1:
 
         self._draw_danger_overlay(surf)
         self._draw_hud(surf)
+
+        # Draw interaction prompt if all parts are collected and player is near the crashed spaceship in sector B4
+        if self.all_parts_collected() and self.current_sector() == CRASH_SITE_SECTOR:
+            dist_to_ship = math.hypot(self.px - 400, self.py - 330)
+            if dist_to_ship < 130:
+                pygame.draw.rect(surf, (10, 15, 30, 220), (SCREEN_W // 2 - 180, SCREEN_H - 95, 360, 45), border_radius=6)
+                pygame.draw.rect(surf, GOLD, (SCREEN_W // 2 - 180, SCREEN_H - 95, 360, 45), 1, border_radius=6)
+                draw_text(surf, "PRESS [E] TO REPAIR & ENTER SHIP", font_small, GOLD, SCREEN_W // 2, SCREEN_H - 73)
+
         self._draw_sector_title(surf)
         self._draw_flash_message(surf)
         self._draw_scanlines(surf)
