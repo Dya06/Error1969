@@ -433,6 +433,14 @@ class Level1:
                 print(f"[ERROR] Failed to load obstacle image {name}: {e}")
                 self.obstacle_imgs[name] = None
 
+        try:
+            self.jumpscare_img = pygame.image.load(
+                "assets/images/watcher_jumpscare.png"
+            ).convert_alpha()
+        except Exception as e:
+            print(f"[ERROR] Failed to load watcher_jumpscare.png: {e}")
+            self.jumpscare_img = None
+
         # Load astronaut walking frames from Level 2
         self.astro_frames = []
         for i in range(10):
@@ -618,7 +626,7 @@ class Level1:
         """Get the actual uniform rect/circle used for collision and drawing (no stretching)."""
         kind = ob["kind"]
         img_key = OBSTACLE_MAPPING.get(kind, "green_crate")
-        size = 240 if img_key == "crashed_ship" else 80
+        size = 250 if img_key == "crashed_ship" else 50
         if is_circle_obstacle(ob):
             # Returns (center_x, center_y, radius)
             return (ob["x"], ob["y"], size // 2)
@@ -1073,7 +1081,7 @@ class Level1:
         img = self.obstacle_imgs.get(img_key)
 
         shape = self._obstacle_collision_shape(ob)
-        size = 240 if img_key == "crashed_ship" else 80
+        size = 300 if img_key == "crashed_ship" else 105 if img_key == "green_crate" else 80
 
         if isinstance(shape, tuple):
             cx, cy, r = shape
@@ -1171,39 +1179,23 @@ class Level1:
         dist = self._sector_distance(self.watcher_sector, current)
         info = self.sector_info()
 
-        # Constricting vignette flashlight overlay in dark sectors (danger >= 0.30) or when Watcher is nearby
         is_dark = info.get("danger", 0.1) >= 0.30 or dist <= 1
 
         if is_dark:
-            darkness = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            darkness.fill((0, 0, 0, 165))  # Brighter darkness fill (165 alpha instead of 195)
+            base_alpha = 165
 
-            # Base visibility radius (increased from 145 to 165 for brighter playfield)
-            light_radius = 165
-            if dist == 0:  # Same sector
+            if dist == 0:
                 w_dist = math.hypot(self.px - self.watcher_x, self.py - self.watcher_y)
                 if w_dist < 320:
-                    # Constricts visible radius from 165 down to 115 when Watcher draws near
-                    light_radius = int(lerp(115, 165, clamp(w_dist / 320, 0.0, 1.0)))
+                    base_alpha = int(lerp(210, 165, clamp(w_dist / 320, 0.0, 1.0)))
 
-            # Concentric transparent cuts centered on player
-            for radius, alpha in [
-                (light_radius, 0),
-                (light_radius + 35, 55),
-                (light_radius + 70, 105),
-                (light_radius + 105, 165),
-            ]:
-                pygame.draw.circle(
-                    darkness,
-                    (0, 0, 0, alpha),
-                    (int(self.px), int(self.py)),
-                    radius
-                )
+            darkness = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+            darkness.fill((0, 0, 0, base_alpha))
             surf.blit(darkness, (0, 0))
 
         if self.watcher_visible:
             d = math.hypot(self.px - self.watcher_x, self.py - self.watcher_y)
-            if d < 320:  # Starts warning pulsing further away (320px instead of 180px)
+            if d < 320:
                 overlay = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
                 alpha = int(clamp((320 - d) / 320 * 120, 0, 120))
                 overlay.fill((130, 0, 0, alpha))
@@ -1228,7 +1220,6 @@ class Level1:
 
         info = self.sector_info()
 
-        # Left objective panel
         pygame.draw.rect(surf, (18, 20, 34), (12, 9, 230, 36), border_radius=8)
         pygame.draw.rect(surf, (90, 90, 120), (12, 9, 230, 36), 1, border_radius=8)
 
@@ -1237,7 +1228,6 @@ class Level1:
         objective = "RETURN TO CRASH SITE" if self.all_parts_collected() else "RECOVER SHIP PARTS"
         draw_text_left(surf, objective, font_small, MOON_GREY, 24, 27)
 
-        # Centre sector
         draw_text(
             surf,
             f"SECTOR {info['code']}",
@@ -1387,38 +1377,26 @@ class Level1:
         t = self.jumpscare_timer
         scale = self.jumpscare_scale
 
-        if t < 10:
-            surf.fill((180, 0, 0))
-        else:
-            surf.fill((0, 0, 0))
+        surf.fill((0, 0, 0))
 
         ox, oy = self._apply_shake_offset()
-        cx, cy = SCREEN_W // 2 + ox, SCREEN_H // 2 - 30 + oy
-        size = int(scale * 260)
 
-        if size > 10:
-            for ar in range(size + 60, size, -20):
-                alpha = max(0, int(80 * (1 - (ar - size) / 60) * scale))
-                s = pygame.Surface((ar * 2, ar * 2), pygame.SRCALPHA)
-                pygame.draw.circle(s, (120, 0, 160, alpha), (ar, ar), ar)
-                surf.blit(s, (cx - ar, cy - ar))
+        if scale > 0.01:
+            try:
+                js_img = pygame.image.load("assets/images/watcher_jumpscare.png").convert_alpha()
+            except Exception:
+                js_img = js_img = self.jumpscare_img
 
-            pygame.draw.circle(surf, (230, 220, 220), (cx, cy), size)
-            iris_wobble = int(8 * math.sin(t * 0.4))
-            pygame.draw.circle(surf, PURPLE, (cx + iris_wobble, cy), int(size * 0.6))
-            pygame.draw.circle(surf, BLACK, (cx + iris_wobble, cy), int(size * 0.35))
-            pygame.draw.circle(
-                surf,
-                WHITE,
-                (cx + iris_wobble - size // 6, cy - size // 6),
-                max(1, size // 10)
-            )
+            if js_img:
+                # Scale image up from small to full screen as scale goes 0 -> 1
+                target_w = int(SCREEN_W * scale)
+                target_h = int(SCREEN_H * scale)
 
-            for i in range(12):
-                angle = i * math.pi / 6 + t * 0.05
-                ex = int(cx + size * math.cos(angle))
-                ey = int(cy + size * math.sin(angle))
-                pygame.draw.line(surf, BLOOD_RED, (cx, cy), (ex, ey), 2)
+            if target_w > 0 and target_h > 0:
+                scaled = pygame.transform.smoothscale(js_img, (target_w, target_h))
+                cx = SCREEN_W // 2 + ox - target_w // 2
+                cy = SCREEN_H // 2 + oy - target_h // 2
+                surf.blit(scaled, (cx, cy))
 
         if t > 20:
             text_alpha = min(255, (t - 20) * 8)
