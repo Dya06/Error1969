@@ -418,10 +418,6 @@ class Level1:
                 self.watcher_frames.append(img)
             except Exception as e:
                 print(f"[ERROR] Failed to load {path}: {e}")
-        self.rock_img = load_transparent_img("assets/images/rock.png")
-        self.crater_img = load_transparent_img("assets/images/crater.png")
-        self.debris_img = load_transparent_img("assets/images/debris.png")
-
         # Load custom colored obstacle assets
         self.obstacle_imgs = {}
         for name in ["blue_barrel", "big_rock", "alien_rock", "crashed_ship"]:
