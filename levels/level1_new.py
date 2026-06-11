@@ -69,20 +69,20 @@ OBSTACLE_MAPPING = {
     "engine_crater": "blue_barrel",
     
     # Green Crate
-    "console": "green_crate",
-    "panel": "green_crate",
-    "rover": "green_crate",
-    "antenna": "green_crate",
-    "rock": "green_crate",
-    "small_rocks": "green_crate",
-    "shadow_rock": "green_crate",
+    "console": "big_rock",
+    "panel": "big_rock",
+    "rover": "big_rock",
+    "antenna": "big_rock",
+    "rock": "big_rock",
+    "small_rocks": "big_rock",
+    "shadow_rock": "big_rock",
     
     # Orange Barrier
-    "dish": "orange_barrier",
-    "wreckage": "orange_barrier",
-    "debris": "orange_barrier",
-    "crystal": "orange_barrier",
-    "eye_mark": "orange_barrier",
+    "dish": "alien_rock",
+    "wreckage": "alien_rock",
+    "debris": "alien_rock",
+    "crystal": "alien_rock",
+    "eye_mark": "alien_rock",
 
     # Crashed Spaceship Wreckage
     "ship": "crashed_ship",
@@ -424,7 +424,7 @@ class Level1:
 
         # Load custom colored obstacle assets
         self.obstacle_imgs = {}
-        for name in ["blue_barrel", "green_crate", "orange_barrier", "crashed_ship"]:
+        for name in ["blue_barrel", "big_rock", "alien_rock", "crashed_ship"]:
             try:
                 img = pygame.image.load(f"assets/images/{name}.png").convert_alpha()
                 self.obstacle_imgs[name] = img
@@ -624,10 +624,10 @@ class Level1:
     def _obstacle_collision_shape(self, ob):
         """Get the actual uniform rect/circle used for collision and drawing (no stretching)."""
         kind = ob["kind"]
-        img_key = OBSTACLE_MAPPING.get(kind, "green_crate")
+        img_key = OBSTACLE_MAPPING.get(kind, "big_rock")
         if img_key == "crashed_ship":
             size = 180
-        elif img_key == "green_crate":
+        elif img_key == "big_rock":
             size = 85
         else:
             size = 65
@@ -1092,11 +1092,11 @@ class Level1:
 
     def _draw_obstacle(self, surf, ob, ox, oy):
         kind = ob["kind"]
-        img_key = OBSTACLE_MAPPING.get(kind, "green_crate")
+        img_key = OBSTACLE_MAPPING.get(kind, "big_rock")
         img = self.obstacle_imgs.get(img_key)
 
         shape = self._obstacle_collision_shape(ob)
-        size = 300 if img_key == "crashed_ship" else 105 if img_key == "green_crate" else 80
+        size = 300 if img_key == "crashed_ship" else 105 if img_key == "big_rock" else 80
 
         if isinstance(shape, tuple):
             cx, cy, r = shape
@@ -1127,7 +1127,7 @@ class Level1:
                 # Check if vertical orientation in design, rotate if so
                 orig_rect = rect_from_obstacle(ob)
                 draw_img = img
-                if orig_rect.h > orig_rect.w and img_key in ["blue_barrel", "green_crate"]:
+                if orig_rect.h > orig_rect.w and img_key in ["blue_barrel", "big_rock"]:
                     draw_img = pygame.transform.rotate(img, 90)
                 scaled_img = pygame.transform.smoothscale(draw_img, (size, size))
                 surf.blit(scaled_img, (rect.x + ox, rect.y + oy))
