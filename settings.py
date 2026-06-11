@@ -8,9 +8,6 @@ SCREEN_W, SCREEN_H = 800, 600
 FPS = 60
 GAME_TITLE = "ERROR 1969"
 
-# ─────────────────────────────────────────────
-#  COLOURS  (pixel-art palette)
-# ─────────────────────────────────────────────
 BLACK      = (0,   0,   0)
 WHITE      = (255, 255, 255)
 DARK_GREY  = (20,  20,  30)
@@ -38,11 +35,7 @@ VORTEX_PUR = (140,  30, 200)
 SHIELD_BLU = (60, 180, 255)
 POWER_GRN  = (40, 230,  80)
 
-# ─────────────────────────────────────────────
-#  FONTS  (pixel-style)
-# ─────────────────────────────────────────────
 def load_font(size):
-    # Use monospace for a retro pixel feel
     for name in ("Courier New", "Courier", "monospace"):
         try:
             return pygame.font.SysFont(name, size, bold=True)

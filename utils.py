@@ -5,9 +5,6 @@ import math
 import random
 from settings import *
 
-# ─────────────────────────────────────────────
-#  UTILITY HELPERS
-# ─────────────────────────────────────────────
 def draw_text(surf, text, font, colour, cx, cy, alpha=255):
     s = font.render(text, False, colour)
     s.set_alpha(alpha)
@@ -24,9 +21,6 @@ def lerp(a, b, t):
 def clamp(v, lo, hi):
     return max(lo, min(hi, v))
 
-# ─────────────────────────────────────────────
-#  PIXEL ART DRAWING HELPERS
-# ─────────────────────────────────────────────
 def draw_pixel_rect(surf, colour, rect, border=0):
     pygame.draw.rect(surf, colour, rect, border)
 
@@ -67,9 +61,6 @@ def stop_music(fade_ms=0):
     except Exception:
         pass
 
-# ─────────────────────────────────────────────
-#  STARS BACKGROUND
-# ─────────────────────────────────────────────
 stars = [(random.randint(0, SCREEN_W), random.randint(0, SCREEN_H),
           random.randint(1, 3), random.random()) for _ in range(200)]
 

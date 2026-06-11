@@ -37,14 +37,8 @@ STATE_DEATH_CUTSCENE = "death_cutscene"
 STATE_GAMEOVER = "gameover"
 STATE_TRANSITION = "transition"
 
-
 DEBUG_START_STATE = STATE_TITLE
 
-
-
-
-
-# CUTSCENE TEXT
 INTRO_LINES = [
     "JULY 20, 1969.",
     "HUMANITY HAS REACHED THE MOON. BUT NOT ALL GOES AS PLANNED...",
@@ -118,11 +112,6 @@ WIN_LINES = [
     "JULY 21, 1969 — ASTRONAUT NEIL, MISSION COMPLETE.",
     "APOLLO 11 — OVERCOME.",
 ]
-
-
-# ─────────────────────────────────────────────
-# MAIN GAME
-# ─────────────────────────────────────────────
 
 def main():
     state = None
@@ -221,7 +210,6 @@ def main():
         transition = Transition(fade_in=False, duration=35)
         state = STATE_TRANSITION
 
-    # Start game
     start_state(DEBUG_START_STATE)
 
     running = True
@@ -242,9 +230,7 @@ def main():
         if not running:
             break
 
-        # ── UPDATE + DRAW ───────────────────────────
         if state == STATE_TRANSITION:
-            # Draw previous scene behind the fade.
             if scene is not None:
                 scene.draw(screen)
             else:
@@ -260,10 +246,6 @@ def main():
         else:
             scene.update()
             scene.draw(screen)
-
-            # ─────────────────────────────────────────
-            # STATE TRANSITIONS
-            # ─────────────────────────────────────────
 
             if state == STATE_EARPHONE_NOTICE and scene.done:
                 go_to(STATE_TITLE)
@@ -329,7 +311,6 @@ def main():
 
     pygame.quit()
     sys.exit()
-
 
 if __name__ == "__main__":
     main()

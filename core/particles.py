@@ -4,9 +4,6 @@ import pygame
 import random
 import math
 
-# ─────────────────────────────────────────────
-#  PARTICLE SYSTEM
-# ─────────────────────────────────────────────
 class Particle:
     def __init__(self, x, y, vx, vy, colour, life, size=3):
         self.x, self.y = x, y
@@ -18,7 +15,7 @@ class Particle:
     def update(self):
         self.x += self.vx
         self.y += self.vy
-        self.vy += 0.05  # gravity
+        self.vy += 0.05
         self.life -= 1
 
     def draw(self, surf):

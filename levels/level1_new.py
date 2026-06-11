@@ -18,11 +18,6 @@ from utils import *
 from core.particles import spawn_particles, update_particles
 from graphics.sprites import *
 
-
-# ─────────────────────────────────────────────
-#  MAP SETTINGS
-# ─────────────────────────────────────────────
-
 MAP_COLS = 4
 MAP_ROWS = 4
 
@@ -34,16 +29,9 @@ PLAY_RIGHT = SCREEN_W
 PLAYER_RADIUS = 18
 WATCHER_RADIUS = 30
 
-# Player starts at B4 = col 3, row 1
 START_SECTOR = (3, 1)
 
-# Crash site is the starting sector B4
 CRASH_SITE_SECTOR = START_SECTOR
-
-
-# ─────────────────────────────────────────────
-#  PART DATA
-# ─────────────────────────────────────────────
 
 PART_TYPES = {
     "ENGINE CORE": 0,
@@ -53,13 +41,7 @@ PART_TYPES = {
     "LIFE SUPPORT": 4,
 }
 
-
-# ─────────────────────────────────────────────
-#  OBSTACLE MAPPING
-# ─────────────────────────────────────────────
-
 OBSTACLE_MAPPING = {
-    # Blue Barrel
     "fuel_tank": "blue_barrel",
     "pipe": "blue_barrel",
     "oxygen_tank": "blue_barrel",
@@ -68,7 +50,6 @@ OBSTACLE_MAPPING = {
     "crater": "blue_barrel",
     "engine_crater": "blue_barrel",
     
-    # Green Crate
     "console": "big_rock",
     "panel": "big_rock",
     "rover": "big_rock",
@@ -77,23 +58,15 @@ OBSTACLE_MAPPING = {
     "small_rocks": "big_rock",
     "shadow_rock": "big_rock",
     
-    # Orange Barrier
     "dish": "alien_rock",
     "wreckage": "alien_rock",
     "debris": "alien_rock",
     "crystal": "alien_rock",
     "eye_mark": "alien_rock",
 
-    # Crashed Spaceship Wreckage
     "ship": "crashed_ship",
     "crashed_ship": "crashed_ship",
 }
-
-
-# ─────────────────────────────────────────────
-#  SECTOR DATA
-#  Coordinates: (col, row)
-# ─────────────────────────────────────────────
 
 SECTOR_DATA = {
     (0, 0): {
@@ -307,24 +280,16 @@ SECTOR_DATA = {
     },
 }
 
-
-# ─────────────────────────────────────────────
-#  SMALL HELPERS
-# ─────────────────────────────────────────────
-
 def sector_label(col, row):
     letters = "ABCD"
     return f"{letters[row]}{col + 1}"
-
 
 def rect_from_obstacle(ob):
     """Return a pygame.Rect for rectangular obstacles."""
     return pygame.Rect(ob["x"], ob["y"], ob["w"], ob["h"])
 
-
 def is_circle_obstacle(ob):
     return "r" in ob
-
 
 class Level1:
     """Looping lunar overworld level."""
@@ -332,25 +297,21 @@ class Level1:
     HUD_H = PLAY_TOP
 
     def __init__(self):
-        # ── Sector / map ───────────────────────────────
         self.sector_col, self.sector_row = START_SECTOR
         self.visited_sectors = {START_SECTOR}
         self.sector_flash_timer = 120
 
-        # ── Player ────────────────────────────────────
         self.px = SCREEN_W // 2
         self.py = SCREEN_H - 150
         self.speed = 3.0
         self.player_frame = 0
         self.facing = 1
 
-        # ── Ship parts ────────────────────────────────
         self.parts_total = 5
         self.collected_parts = set()
         self.flash_msg = ""
         self.flash_timer = 0
 
-        # ── State ─────────────────────────────────────
         self.player_hp = 10
         self.player_max = 10
         self.done = False
@@ -361,8 +322,7 @@ class Level1:
         self.glitch_timer = 0
         self.glitch_active_frames = 0
 
-        # ── Watcher state ─────────────────────────────
-        self.watcher_sector = (1, 1)  # B2
+        self.watcher_sector = (1, 1)
         self.watcher_x = 120
         self.watcher_y = 160
         self.watcher_frame = 0
@@ -373,21 +333,17 @@ class Level1:
         self.heartbeat_channel = None
         self.heartbeat_tier = None
 
-        # ── Jumpscare ─────────────────────────────────
         self.jumpscare_active = False
         self.jumpscare_timer = 0
         self.jumpscare_scale = 0.0
         self.JUMPSCARE_DUR = 120
 
-        # ── Transition / screen movement ──────────────
         self.transition_timer = 0
         self.transition_max = 16
 
-        # ── Sounds ────────────────────────────────────
         self._init_sounds()
         play_music("assets/audio/level1/level1bgmusic.wav", loops=-1, volume=0.5)
 
-        # ── Image Assets & Sprites (No hardcoded graphics) ──
         self.sector_imgs = {}
         for row in range(MAP_ROWS):
             for col in range(MAP_COLS):
@@ -408,7 +364,6 @@ class Level1:
                 print(f"[WARNING] Failed to load sprite {path}: {e}")
                 return None
 
-        # Load Watcher walking frames
         self.watcher_frames = []
         for i in range(5):
             path = f"assets/images/watcher_walk{i}.png"
@@ -418,7 +373,6 @@ class Level1:
                 self.watcher_frames.append(img)
             except Exception as e:
                 print(f"[ERROR] Failed to load {path}: {e}")
-        # Load custom colored obstacle assets
         self.obstacle_imgs = {}
         for name in ["blue_barrel", "big_rock", "alien_rock", "crashed_ship"]:
             try:
@@ -436,7 +390,6 @@ class Level1:
             print(f"[ERROR] Failed to load watcher_jumpscare.png: {e}")
             self.jumpscare_img = None
 
-        # Load astronaut walking frames from Level 2
         self.astro_frames = []
         for i in range(10):
             path = f"assets/images/monsters/astronaut/ASTRO{i}.png"
@@ -447,10 +400,6 @@ class Level1:
             except Exception as e:
                 print(f"[ERROR] Failed to load ASTRO{i}.png: {e}")
         self.astro_anim_speed = 6
-
-    # ─────────────────────────────────────────────
-    #  SOUND
-    # ─────────────────────────────────────────────
 
     def _init_sounds(self):
         self.snd_collect = self._gen_tone(880, 0.12, shape="square")
@@ -502,10 +451,6 @@ class Level1:
             except Exception:
                 pass
 
-    # ─────────────────────────────────────────────
-    #  BASIC STATE
-    # ─────────────────────────────────────────────
-
     def current_sector(self):
         return self.sector_col, self.sector_row
 
@@ -514,10 +459,6 @@ class Level1:
 
     def all_parts_collected(self):
         return len(self.collected_parts) >= self.parts_total
-
-    # ─────────────────────────────────────────────
-    #  INPUT / UPDATE
-    # ─────────────────────────────────────────────
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
@@ -541,7 +482,7 @@ class Level1:
 
         if self.transition_timer > 0:
             self.transition_timer -= 1
-            return  # Freeze player/enemy updates during sector transition fade!
+            return
 
         if self.immune_timer > 0:
             self.immune_timer -= 1
@@ -549,13 +490,12 @@ class Level1:
         if self.screen_shake > 0:
             self.screen_shake -= 1
 
-        # Glitch effect timing (subtle horizontal jitter every few seconds)
         self.glitch_timer += 1
         if self.glitch_active_frames > 0:
             self.glitch_active_frames -= 1
-        elif self.glitch_timer > 210:  # ~3.5 seconds at 60fps
-            if random.random() < 0.015:  # small chance once timer expires
-                self.glitch_active_frames = random.randint(3, 7)  # lasts 3-7 frames
+        elif self.glitch_timer > 210:
+            if random.random() < 0.015:
+                self.glitch_active_frames = random.randint(3, 7)
                 self.glitch_timer = 0
 
         self._update_player()
@@ -568,7 +508,7 @@ class Level1:
             ox += random.randint(-self.screen_shake, self.screen_shake)
             oy += random.randint(-self.screen_shake, self.screen_shake)
         if self.glitch_active_frames > 0:
-            ox += random.randint(-8, 8)  # horizontal jitter shift during glitch
+            ox += random.randint(-8, 8)
         return ox, oy
 
     def _update_player(self):
@@ -607,11 +547,9 @@ class Level1:
         current_x = self.px
         current_y = self.py
 
-        # Move X first
         if not self._collides_with_obstacle(new_x, current_y, PLAYER_RADIUS):
             current_x = new_x
 
-        # Then Y
         if not self._collides_with_obstacle(current_x, new_y, PLAYER_RADIUS):
             current_y = new_y
 
@@ -628,11 +566,9 @@ class Level1:
         else:
             size = 65
         if is_circle_obstacle(ob):
-            # Returns (center_x, center_y, radius)
             return (ob["x"], ob["y"], size // 2)
         else:
             rect = rect_from_obstacle(ob)
-            # Create a square rect of 'size' centered at rect.center
             return pygame.Rect(rect.centerx - size // 2, rect.centery - size // 2, size, size)
 
     def _collides_with_obstacle(self, x, y, radius):
@@ -685,16 +621,11 @@ class Level1:
             self.transition_timer = self.transition_max
             self._maybe_spawn_watcher_on_entry(entered_from)
 
-    # ─────────────────────────────────────────────
-    #  PART COLLECTION
-    # ─────────────────────────────────────────────
-
     def _update_part_collection(self):
         info = self.sector_info()
         part_name = info["part"]
 
         if part_name is None:
-            # Finish condition: all parts collected and player returns to Crash Site.
             if self.all_parts_collected() and self.current_sector() == CRASH_SITE_SECTOR:
                 if math.hypot(self.px - 400, self.py - 330) < 130:
                     keys = pygame.key.get_pressed()
@@ -731,17 +662,12 @@ class Level1:
             self._play(self.snd_collect)
             self.screen_shake = 12
 
-            # Make Watcher angrier
             self.watcher_speed = 1.1 + 0.12 * len(self.collected_parts)
             self.watcher_sector_delay = max(150, 330 - len(self.collected_parts) * 35)
 
             if self.all_parts_collected():
                 self.flash_msg = "ALL PARTS FOUND! RETURN TO CRASH SITE!"
                 self.flash_timer = 160
-
-    # ─────────────────────────────────────────────
-    #  WATCHER
-    # ─────────────────────────────────────────────
 
     def _update_watcher(self):
         current = self.current_sector()
@@ -813,15 +739,12 @@ class Level1:
         wc, wr = self.watcher_sector
         pc, pr = self.current_sector()
 
-        # If already in the same sector, don't move sector and don't reset spawn position
         if (wc, wr) == (pc, pr):
             return
 
-        # Determine shortest wrapped horizontal direction
         right_steps = (pc - wc) % MAP_COLS
         left_steps = (wc - pc) % MAP_COLS
 
-        # Determine shortest wrapped vertical direction
         down_steps = (pr - wr) % MAP_ROWS
         up_steps = (wr - pr) % MAP_ROWS
 
@@ -842,7 +765,6 @@ class Level1:
         if possible_moves:
             self.watcher_sector = random.choice(possible_moves)
 
-        # If it enters the player's current sector, spawn it away from the player
         if self.watcher_sector == self.current_sector():
             self._spawn_watcher_far_from_player()
 
@@ -876,23 +798,18 @@ class Level1:
             target_angle = math.atan2(dy, dx)
             speed = self.watcher_speed
 
-            # Check if direct path is clear
             dir_x = self.watcher_x + math.cos(target_angle) * speed
             dir_y = self.watcher_y + math.sin(target_angle) * speed
             direct_clear = not self._collides_with_obstacle(dir_x, dir_y, WATCHER_RADIUS)
 
             if direct_clear:
-                # Direct path is clear! Go straight and reset slide state
                 self.watcher_slide_sign = 0
                 self.watcher_x = dir_x
                 self.watcher_y = dir_y
             else:
-                # Direct path is blocked! We need to slide
                 found_slide = False
                 
-                # If we already have a slide direction, try to keep it
                 if self.watcher_slide_sign != 0:
-                    # Scan offsets using the same sign
                     for deg in [30, 45, 60, 75, 90, 105, 120, 135, 150]:
                         angle = target_angle + self.watcher_slide_sign * math.radians(deg)
                         cx = self.watcher_x + math.cos(angle) * speed
@@ -905,11 +822,9 @@ class Level1:
                             found_slide = True
                             break
                             
-                # If we didn't have a sign, or the existing sign is blocked, scan both signs
                 if not found_slide:
                     for deg in [45, 60, 75, 90, 105, 120, 135]:
                         rad_offset = math.radians(deg)
-                        # Try both Left and Right
                         for sign in [1, -1]:
                             angle = target_angle + sign * rad_offset
                             cx = self.watcher_x + math.cos(angle) * speed
@@ -925,7 +840,6 @@ class Level1:
                         if found_slide:
                             break
                             
-                # Fallback: simple axis movement if absolutely everything is blocked
                 if not found_slide:
                     self.watcher_slide_sign = 0
                     if not self._collides_with_obstacle(dir_x, self.watcher_y, WATCHER_RADIUS):
@@ -966,10 +880,6 @@ class Level1:
             self.player_hp = 0
             self.lose = True
 
-    # ─────────────────────────────────────────────
-    #  DRAWING
-    # ─────────────────────────────────────────────
-
     def draw(self, surf):
         if self.jumpscare_active:
             self._draw_jumpscare(surf)
@@ -985,7 +895,6 @@ class Level1:
         if self.watcher_visible:
             self._draw_watcher(surf, ox, oy)
 
-        # Draw player astronaut using image frames
         if self.astro_frames:
             frame_index = (self.player_frame // self.astro_anim_speed) % len(self.astro_frames)
             img = self.astro_frames[frame_index]
@@ -1001,7 +910,6 @@ class Level1:
         self._draw_danger_overlay(surf)
         self._draw_hud(surf)
 
-        # Draw interaction prompt if all parts are collected and player is near the crashed spaceship in sector B4
         if self.all_parts_collected() and self.current_sector() == CRASH_SITE_SECTOR:
             dist_to_ship = math.hypot(self.px - 400, self.py - 330)
             if dist_to_ship < 130:
@@ -1014,7 +922,6 @@ class Level1:
         self._draw_scanlines(surf)
         self._draw_transition_overlay(surf)
 
-        # Draw subtle color aberration lines during screen glitch
         if self.glitch_active_frames > 0:
             glitch_surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
             for _ in range(random.randint(2, 5)):
@@ -1033,17 +940,14 @@ class Level1:
         else:
             surf.fill((34, 34, 42))
 
-        # Star strip above playfield / sky feel
         pygame.draw.rect(surf, (4, 4, 12), (0, 0, SCREEN_W, PLAY_TOP))
 
-        # Sector border lines like screen tiles / Faith-ish framing
         pygame.draw.rect(surf, (70, 70, 85), (ox, PLAY_TOP + oy, SCREEN_W, SCREEN_H - PLAY_TOP), 1)
 
     def _draw_sector_details(self, surf, ox, oy):
         info = self.sector_info()
         theme = info["theme"]
 
-        # Footprints/tracks
         rng = random.Random((self.sector_col + 1) * 123 + (self.sector_row + 1) * 456)
         for _ in range(8):
             x = rng.randint(80, SCREEN_W - 80)
@@ -1051,7 +955,6 @@ class Level1:
             pygame.draw.ellipse(surf, (55, 55, 65), (x + ox, y + oy, 7, 3))
             pygame.draw.ellipse(surf, (50, 50, 60), (x + 12 + ox, y + 7 + oy, 7, 3))
 
-        # Dynamic lunar surface textures: tiny craters, cracks, and dust layers
         for _ in range(25):
             x = rng.randint(20, SCREEN_W - 20)
             y = rng.randint(PLAY_TOP + 20, SCREEN_H - 20)
@@ -1059,7 +962,6 @@ class Level1:
             pygame.draw.circle(surf, (45, 45, 55), (x + ox, y + oy), r, 1)
             pygame.draw.circle(surf, (30, 30, 40), (x + ox + 1, y + oy + 1), r - 1, 1)
             
-        # Scattered tiny lunar rocks / debris
         for _ in range(12):
             x = rng.randint(30, SCREEN_W - 30)
             y = rng.randint(PLAY_TOP + 30, SCREEN_H - 30)
@@ -1076,7 +978,6 @@ class Level1:
                 (x - size//2 + ox, y + size + oy)
             ], 1)
             
-        # Terminal coordinate hud telemetry on the ground
         col, row = self.current_sector()
         code = info["code"]
         draw_text(surf, f"COORD: {col*200:04d}m, {row*200:04d}m", font_tiny, (60, 60, 80), 110, PLAY_TOP + 25, 120)
@@ -1097,7 +998,6 @@ class Level1:
         if isinstance(shape, tuple):
             cx, cy, r = shape
             
-            # Draw drop shadow beneath circular/barrel obstacles (not for crashed spaceship)
             if img_key != "crashed_ship":
                 shadow_h = size // 5
                 shadow_surf = pygame.Surface((size, shadow_h), pygame.SRCALPHA)
@@ -1112,7 +1012,6 @@ class Level1:
         else:
             rect = shape
             
-            # Draw drop shadow beneath rectangular/crate obstacles (not for crashed spaceship)
             if img_key != "crashed_ship":
                 shadow_h = size // 5
                 shadow_surf = pygame.Surface((size, shadow_h), pygame.SRCALPHA)
@@ -1120,7 +1019,6 @@ class Level1:
                 surf.blit(shadow_surf, (rect.x + ox, rect.y + size - shadow_h + 4 + oy))
             
             if img:
-                # Check if vertical orientation in design, rotate if so
                 orig_rect = rect_from_obstacle(ob)
                 draw_img = img
                 if orig_rect.h > orig_rect.w and img_key in ["blue_barrel", "big_rock"]:
@@ -1140,14 +1038,12 @@ class Level1:
         x, y = info["part_pos"]
         part_type = PART_TYPES.get(part_name, 0)
 
-        # Glow
         pulse = 0.5 + 0.5 * math.sin(self.t * 0.08)
         glow_r = int(26 + 8 * pulse)
         glow = pygame.Surface((glow_r * 2, glow_r * 2), pygame.SRCALPHA)
         pygame.draw.circle(glow, (255, 220, 60, 70), (glow_r, glow_r), glow_r)
         surf.blit(glow, (x - glow_r + ox, y - glow_r + oy))
 
-        # Existing detailed part drawer
         draw_ship_part(surf, x + ox, y + oy, part_type)
 
         if math.hypot(self.px - x, self.py - y) < 75:
@@ -1164,7 +1060,6 @@ class Level1:
         wx = int(self.watcher_x)
         wy = int(self.watcher_y)
 
-        # 1. Pulsing organic aura backdrop
         pulse = 0.5 + 0.5 * math.sin(self.t * 0.1)
         base_radius = 45 + 15 * pulse
         for r_offset, alpha in [(0, 48), (12, 32), (24, 18), (36, 8)]:
@@ -1173,11 +1068,9 @@ class Level1:
             pygame.draw.circle(aura_surf, (140, 0, 70, alpha), (r, r), r)
             surf.blit(aura_surf, (wx + ox - r, wy + oy - r))
 
-        # 2. Watcher walk frame animation
         if self.watcher_frames:
             frame_idx = (self.watcher_frame // 6) % len(self.watcher_frames)
             img = self.watcher_frames[frame_idx]
-            # Flip relative to player: if player is to left of watcher, face left (flip True)
             if self.px < self.watcher_x:
                 img = pygame.transform.flip(img, True, False)
             rect = img.get_rect(center=(wx + ox, wy + oy))
@@ -1248,7 +1141,6 @@ class Level1:
             16
         )
 
-        # Parts counter
         pygame.draw.rect(surf, (30, 24, 10), (SCREEN_W // 2 - 80, 28, 160, 18), border_radius=6)
         pygame.draw.rect(surf, GOLD, (SCREEN_W // 2 - 80, 28, 160, 18), 1, border_radius=6)
 
@@ -1261,7 +1153,6 @@ class Level1:
             37
         )
 
-        # Health bar
         draw_hp_bar(
             surf,
             SCREEN_W - 190,
@@ -1273,7 +1164,6 @@ class Level1:
             "SUIT"
         )
 
-        # Sector minimap
         self._draw_sector_minimap(surf)
 
     def _draw_sector_minimap(self, surf):
@@ -1378,7 +1268,6 @@ class Level1:
         surf.blit(overlay, (0, 0))
 
     def _draw_scanlines(self, surf):
-        # CRT scanlines (matching Level 3 / Screens)
         scan = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
         for y in range(0, SCREEN_H, 5):
             pygame.draw.line(scan, (255, 255, 255, 7), (0, y), (SCREEN_W, y))
@@ -1399,7 +1288,6 @@ class Level1:
                 js_img = js_img = self.jumpscare_img
 
             if js_img:
-                # Scale image up from small to full screen as scale goes 0 -> 1
                 target_w = int(SCREEN_W * scale)
                 target_h = int(SCREEN_H * scale)
 

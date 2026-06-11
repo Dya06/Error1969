@@ -6,7 +6,6 @@ import pygame
 from settings import *
 from utils import *
 
-
 BG_PATHS = [
     "assets/images/LVL3.png",
     "assets/images/LVL3.jpg",
@@ -27,7 +26,6 @@ ME_FRAME_COUNT = 8
 ACID_FRAME_DIR = ME_FRAME_DIR
 ACID_FRAME_COUNT = 8
 
-
 GROUND_Y = SCREEN_H - 105
 BOTTOM_HUD_H = 82
 PLAY_AREA_BOTTOM = SCREEN_H - BOTTOM_HUD_H
@@ -47,7 +45,6 @@ BOOST_CHARGE_TIME = 90
 
 BOSS_MAX_HP = 50
 PLAYER_MAX_HP = 30
-
 
 class DisintegrationParticle:
     def __init__(self, x, y, color=(255, 80, 30), block_size=6):
@@ -163,7 +160,6 @@ class Level3:
 
         play_music("assets/audio/level3/Level3BossMusic.wav", loops=-1, volume=0.45)
 
-
     def _load_background(self):
         for path in BG_PATHS:
             if os.path.exists(path):
@@ -218,7 +214,6 @@ class Level3:
             frames.append(img)
 
         return frames
-
 
     def _make_missing_acid_frame(self, i):
         """Fallback if acid frames are missing."""
@@ -285,7 +280,6 @@ class Level3:
 
         return frames
 
-
     def _load_astro3_shoot_frames(self):
         """Load shooting astronaut frames: ASTROS0.png - ASTROS3.png"""
         frames = []
@@ -300,12 +294,10 @@ class Level3:
 
             img = pygame.image.load(path).convert_alpha()
 
-            # Same size as normal astronaut
             img = pygame.transform.scale(img, (PLAYER_W, PLAYER_H))
             frames.append(img)
 
         return frames
-
 
     def _load_bullet_frames(self):
         """Load bullet animation frames: BULLET1.png - BULLET9.png"""
@@ -324,7 +316,6 @@ class Level3:
             frames.append(img)
 
         return frames
-
 
     def _make_missing_bullet_frame(self, i):
         """Fallback bullet if PNG missing."""
@@ -345,7 +336,6 @@ class Level3:
 
         draw_text(surf, str(i), font_tiny, RED, PLAYER_W // 2, PLAYER_H - 8)
         return surf
-
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
@@ -593,7 +583,6 @@ class Level3:
             elif choice == "blackout":
                 self._trigger_blackout()
 
-
         if self.boss_voice_timer > 0:
             self.boss_voice_timer -= 1
         elif random.random() < 0.004:
@@ -766,7 +755,6 @@ class Level3:
     def _spawn_boss_disintegration(self):
         self.death_particles = []
 
-        # Spawn particles around boss body
         for _ in range(180):
             px = self.boss_x + random.randint(-80, 80)
             py = self.boss_y + random.randint(-120, 120)
@@ -782,12 +770,6 @@ class Level3:
                 DisintegrationParticle(px, py, color=color, block_size=random.choice([4, 5, 6]))
             )
 
-
-
-    # ─────────────────────────────────────────────
-    # HELPERS
-    # ─────────────────────────────────────────────
-
     def _player_rect(self):
         return pygame.Rect(
             int(self.px - PLAYER_W // 2),
@@ -802,22 +784,15 @@ class Level3:
 
         return random.randint(-self.screen_shake, self.screen_shake), random.randint(-self.screen_shake, self.screen_shake)
 
-    # ─────────────────────────────────────────────
-    # DRAW
-    # ─────────────────────────────────────────────
-
     def draw(self, surf):
         ox, oy = self._apply_shake_offset()
 
-        # Background
         surf.blit(self.bg, (ox, oy))
 
-        # Extra darkness over background
         dark = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
         dark.fill((0, 0, 0, 45))
         surf.blit(dark, (0, 0))
 
-        # Ground overlay
         pygame.draw.rect(surf, (8, 8, 12), (0, GROUND_Y + 5, SCREEN_W, SCREEN_H - GROUND_Y))
         pygame.draw.line(surf, (160, 35, 25), (0, GROUND_Y), (SCREEN_W, GROUND_Y), 2)
 
@@ -837,13 +812,11 @@ class Level3:
         self._draw_messages(surf)
 
     def _draw_environment_effects(self, surf):
-        # Emergency flicker
         if self.t % 100 < 8:
             overlay = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
             overlay.fill((130, 0, 0, 35))
             surf.blit(overlay, (0, 0))
 
-        # Sparks
         if self.t % 18 < 4:
             for _ in range(4):
                 x = random.randint(120, SCREEN_W - 160)
@@ -864,7 +837,6 @@ class Level3:
             if fade <= 0:
                 return
 
-        # Organic aura behind sprite
         aura_size = 280
         aura = pygame.Surface((aura_size, aura_size), pygame.SRCALPHA)
         pulse = int((45 + 25 * math.sin(self.t * 0.08)) * fade)
@@ -885,14 +857,8 @@ class Level3:
 
         surf.blit(aura, (bx - aura_size // 2, by - aura_size // 2))
 
-        # Select animation frame
         frame_index = (self.boss_anim // self.me_anim_speed) % len(self.me_frames)
         img = self.me_frames[frame_index]
-
-        # Boss is on the right, player is on the left.
-        # If your ME sprite already faces left, leave it.
-        # If it faces right, uncomment the flip below.
-        # img = pygame.transform.flip(img, True, False)
 
         img.set_alpha(int(255 * fade))
         rect = img.get_rect(center=(bx, by))
@@ -902,13 +868,11 @@ class Level3:
         if self.boss_dying:
             return
 
-        # Phase corruption outline / danger flicker
         if self.boss_phase >= 2 and self.t % 12 < 6:
             ghost = img.copy()
             ghost.fill((140, 0, 40, 80), special_flags=pygame.BLEND_RGBA_MULT)
             surf.blit(ghost, rect.move(random.randint(-3, 3), random.randint(-2, 2)))
 
-        # Extra rage flicker in phase 3
         if self.boss_phase >= 3 and self.t % 8 < 4:
             for _ in range(8):
                 px = random.randint(rect.left, rect.right)
@@ -939,7 +903,6 @@ class Level3:
         if self.immune_timer > 0 and self.immune_timer % 8 >= 4:
             return
 
-        # Shooting animation has priority
         if self.shooting_timer > 0 and len(self.astro_shoot_frames) > 0:
             frame_index = ((self.shooting_anim_speed * ASTRO_SHOOT_COUNT - self.shooting_timer) // self.shooting_anim_speed)
             frame_index = clamp(frame_index, 0, len(self.astro_shoot_frames) - 1)
@@ -948,7 +911,6 @@ class Level3:
             frame_index = (self.player_frame // self.astro_anim_speed) % len(self.astro_frames)
             img = self.astro_frames[frame_index]
 
-        # Assumes sprite faces right by default
         if self.facing == -1:
             img = pygame.transform.flip(img, True, False)
 
@@ -991,7 +953,6 @@ class Level3:
             overlay = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 210))
 
-            # Visibility around player
             pygame.draw.circle(
                 overlay,
                 (0, 0, 0, 45),
@@ -999,7 +960,6 @@ class Level3:
                 110
             )
 
-            # Boss weak point glow
             pygame.draw.circle(
                 overlay,
                 (0, 0, 0, 70),
@@ -1009,16 +969,12 @@ class Level3:
 
             surf.blit(overlay, (0, 0))
 
-        # CRT scanline effect
         scan = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
         for y in range(0, SCREEN_H, 5):
             pygame.draw.line(scan, (255, 255, 255, 7), (0, y), (SCREEN_W, y))
         surf.blit(scan, (0, 0))
 
     def _draw_hud(self, surf):
-        # ─────────────────────────────────────────────
-        # TOP BOSS HUD
-        # ─────────────────────────────────────────────
         top_h = 48
 
         BG = (3, 4, 8)
@@ -1034,11 +990,9 @@ class Level3:
         pygame.draw.rect(surf, BG, (0, 0, SCREEN_W, top_h))
         pygame.draw.line(surf, RED_DIM, (0, top_h - 1), (SCREEN_W, top_h - 1), 2)
 
-        # Subtle scanlines
         for y in range(2, top_h, 5):
             pygame.draw.line(surf, (18, 5, 5), (0, y), (SCREEN_W, y), 1)
 
-        # Boss HP bar
         boss_bar_w = 430
         boss_bar_h = 12
         boss_bar_x = SCREEN_W // 2 - boss_bar_w // 2
@@ -1071,23 +1025,18 @@ class Level3:
             40
         )
 
-        # ─────────────────────────────────────────────
-        # BOTTOM SPACECRAFT CONSOLE HUD
-        # ─────────────────────────────────────────────
         bottom_h = 82
         bottom_y = SCREEN_H - bottom_h
 
         pygame.draw.rect(surf, BG, (0, bottom_y, SCREEN_W, bottom_h))
         pygame.draw.line(surf, RED_DIM, (0, bottom_y), (SCREEN_W, bottom_y), 2)
 
-        # Console scanline / metal plate texture
         for y in range(bottom_y + 3, SCREEN_H, 5):
             pygame.draw.line(surf, (16, 4, 4), (0, y), (SCREEN_W, y), 1)
 
         for x in range(0, SCREEN_W, 40):
             pygame.draw.line(surf, (10, 8, 12), (x, bottom_y), (x, SCREEN_H), 1)
 
-        # Layout sections
         left_rect = pygame.Rect(16, bottom_y + 12, 245, 56)
         mid_rect = pygame.Rect(280, bottom_y + 12, 245, 56)
         right_rect = pygame.Rect(SCREEN_W - 255, bottom_y + 12, 240, 56)
@@ -1096,9 +1045,6 @@ class Level3:
             pygame.draw.rect(surf, PANEL, rect)
             pygame.draw.rect(surf, RED_DIM, rect, 1)
 
-        # ─────────────────────────────────────────────
-        # LEFT: CONTROLS + SECTOR LORE
-        # ─────────────────────────────────────────────
         draw_text_left(
             surf,
             "SECTOR: 04-B // LAUNCH CHAMBER",
@@ -1126,18 +1072,10 @@ class Level3:
             left_rect.y + 40
         )
 
-        # Small warning light
         if self.t % 50 < 25:
             pygame.draw.rect(surf, RED, (left_rect.right - 18, left_rect.y + 10, 6, 6))
         else:
             pygame.draw.rect(surf, FAINT, (left_rect.right - 18, left_rect.y + 10, 6, 6))
-
-        # ─────────────────────────────────────────────
-        # MIDDLE: HEART RATE / BIO-SCANNER
-        # ─────────────────────────────────────────────
-       # ─────────────────────────────────────────────
-# MIDDLE: SYSTEM MESSAGE DISPLAY
-# ─────────────────────────────────────────────
 
         draw_text_left(
             surf,
@@ -1148,12 +1086,10 @@ class Level3:
             mid_rect.y + 8
         )
 
-        # Choose what message appears in the HUD
         if self.flash_timer > 0 and self.flash_msg:
             message = self.flash_msg.upper()
             msg_col = ORANGE
 
-            # Damage-related messages turn red
             if "DAMAGE" in message or "HIT" in message or "FAILURE" in message:
                 msg_col = RED
 
@@ -1169,7 +1105,6 @@ class Level3:
             message = "NO STABLE SIGNAL"
             msg_col = TEXT_DIM
 
-        # Flicker urgent messages
         if msg_col == RED and self.t % 20 < 8:
             msg_col = (120, 20, 18)
 
@@ -1182,7 +1117,6 @@ class Level3:
             mid_rect.y + 30
         )
 
-        # Small fake terminal line
         terminal_line = "LOG // COMBAT SYSTEM ACTIVE"
 
         draw_text(
@@ -1194,9 +1128,6 @@ class Level3:
             mid_rect.y + 48
         )
 
-        # ─────────────────────────────────────────────
-        # RIGHT: SUIT + BOOST CHARGE
-        # ─────────────────────────────────────────────
         draw_text_left(
             surf,
             "SUIT INTEGRITY",
@@ -1210,7 +1141,6 @@ class Level3:
         danger = hp_percent <= 0.35
         heart_col = RED if danger else GREEN
 
-        # Suit HP bar
         suit_bar_x = right_rect.x + 10
         suit_bar_y = right_rect.y + 24
         suit_bar_w = 95
@@ -1233,7 +1163,6 @@ class Level3:
             suit_bar_y - 2
         )
 
-        # Boost charge bar
         boost_y = right_rect.y + 43
         charge_ratio = self.boost_charge / BOOST_CHARGE_TIME
 

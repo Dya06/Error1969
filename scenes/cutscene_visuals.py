@@ -9,7 +9,6 @@ def cutscene1_draw(surf, t):
     draw_moon_surface(surf, 380)
     draw_ship(surf, 200, 354, t, True)
     draw_watcher(surf, SCREEN_W - 150, 300, t, 1.0)
-    # Parts scattered
     for i, (px2, py2) in enumerate([(350, 340), (500, 340), (600, 360), (420, 320), (480, 370)]):
         draw_ship_part(surf, px2, py2, i)
 

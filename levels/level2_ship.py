@@ -14,9 +14,6 @@ from settings import *
 from utils import *
 from core.particles import spawn_particles, update_particles
 
-# ─────────────────────────────────────────────
-# SETTINGS
-# ─────────────────────────────────────────────
 S2_TS = 32
 S2_COLS = 44
 S2_ROWS = 30
@@ -31,21 +28,15 @@ FE_FRAME_COUNT = 8
 ASTRO_FRAME_DIR = "assets/images/monsters/astronaut"
 ASTRO_FRAME_COUNT = 10
 
-# ─────────────────────────────────────────────
-# STUN GUN
-# ─────────────────────────────────────────────
 STUN_GUN_PATH      = "assets/images/Stunt/Stun gun.png"
 STUN_ICON_PATH     = "assets/images/Stunt/stun-icon.png"
-STUN_GUN_SPAWNS    = 2          # always exactly 2 pickups
-STUN_ICON_DURATION = 300        # 5 seconds at 60 fps
-STUN_RADIUS        = 38         # pick-up range (pixels, world space)
-STUN_SHOOT_RANGE   = 260        # range a stun "shot" carries (world space)
-ASTRO3_FRAME_DIR   = "assets/images/monsters/astro3"   # ASTROS0-ASTROS3 shooting frames
+STUN_GUN_SPAWNS    = 2
+STUN_ICON_DURATION = 300
+STUN_RADIUS        = 38
+STUN_SHOOT_RANGE   = 260
+ASTRO3_FRAME_DIR   = "assets/images/monsters/astro3"
 ASTRO3_SHOOT_COUNT = 4
 
-# ─────────────────────────────────────────────
-# MAP DATA
-# ─────────────────────────────────────────────
 def _build_ship_map():
     grid = [[S2_VOID] * S2_COLS for _ in range(S2_ROWS)]
 
@@ -191,7 +182,6 @@ def _room_at_world(x, y):
             return room
     return {"name": "CORRIDOR", "col": (120, 130, 150)}
 
-
 class Level2:
     HUD_H = S2_HUD
 
@@ -247,7 +237,6 @@ class Level2:
         self.view_w          = SCREEN_W / self.zoom
         self.view_h          = (SCREEN_H - self.HUD_H) / self.zoom
 
-        # ── STUN GUN ──────────────────────────────────────────────────
         self.stun_gun_img        = self._load_stun_gun_img()
         self.stun_icon_img       = self._load_stun_icon_img()
         self.astro_shoot_frames  = self._load_astro3_shoot_frames()
@@ -258,7 +247,6 @@ class Level2:
         self.stun_status         = {"active": False, "timer": 0}
         self.stun_cooldown       = 0
 
-        # ── AUDIO ─────────────────────────────────────────────────────
         self.snd_monster       = load_sound("assets/audio/level2/Level2Monster.mp3")
         self.monster_sound_timer = random.randint(240, 420)
         self.snd_bite          = load_sound("assets/audio/level2/bitesound.wav")
@@ -272,9 +260,6 @@ class Level2:
         self._fix_sound_index  = 0
         play_music("assets/audio/level2/Level2MapMusic.mp3", loops=-1, volume=0.45)
 
-    # ─────────────────────────────────────────────
-    # ASSET LOADERS
-    # ─────────────────────────────────────────────
     def _load_failed_experiment_frames(self):
         frames = []
         for i in range(FE_FRAME_COUNT):
@@ -316,7 +301,6 @@ class Level2:
         draw_text(s, str(i), font_tiny, WHITE, 38, 10)
         return s
 
-    # ── STUN GUN ASSETS ───────────────────────────────────────────────
     @staticmethod
     def _pil_to_pygame(path, size):
         import io as _io
@@ -386,9 +370,6 @@ class Level2:
                  "picked": False}
                 for tc, tr in chosen]
 
-    # ─────────────────────────────────────────────
-    # STATIC MAP
-    # ─────────────────────────────────────────────
     def _render_map(self):
         surf = pygame.Surface((WORLD_W, WORLD_H))
         surf.fill((2, 3, 9))
@@ -621,9 +602,6 @@ class Level2:
                 pygame.draw.rect(surf,(55,20,25),(x+8,y+15,12,4))
                 pygame.draw.rect(surf,(35,10,15),(x+14,y+20,8,3))
 
-    # ─────────────────────────────────────────────
-    # UPDATE
-    # ─────────────────────────────────────────────
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_F1:
             self.done = True
@@ -751,7 +729,6 @@ class Level2:
             if dist < self.exp_speed + 1:
                 self.exp_path.pop(0)
             elif dist > 0:
-                # Freeze completely while stunned
                 stun_mult = 0.0 if self.stun_status["active"] else 1.0
                 move_x = (dx / dist) * self.exp_speed * stun_mult
                 move_y = (dy / dist) * self.exp_speed * stun_mult
@@ -791,7 +768,6 @@ class Level2:
         """Pick up stun guns on the floor and fire with [F]."""
         keys = pygame.key.get_pressed()
 
-        # ── Pick up ───────────────────────────────────────────────────
         for pickup in self.stun_pickups:
             if pickup["picked"]: continue
             d = math.hypot(self.px - pickup["wx"], self.py - pickup["wy"])
@@ -805,7 +781,6 @@ class Level2:
                 sx, sy = self._world_to_screen(pickup["wx"], pickup["wy"])
                 spawn_particles(sx, sy, (240, 200, 40), 18, 3, 50)
 
-        # ── Fire ──────────────────────────────────────────────────────
         if keys[pygame.K_f] and self.stun_charges > 0 and self.stun_cooldown <= 0:
             self.stun_charges  -= 1
             self.stun_cooldown  = 45
@@ -825,9 +800,6 @@ class Level2:
                 self.flash_msg   = "MISSED – OUT OF RANGE"
                 self.flash_timer = 60
 
-    # ─────────────────────────────────────────────
-    # HELPERS
-    # ─────────────────────────────────────────────
     def _repaired_count(self):
         return sum(1 for t in self.tasks if t["done"])
 
@@ -838,9 +810,6 @@ class Level2:
         vx, vy = self._world_to_view(wx, wy)
         return int(vx * self.zoom), int(vy * self.zoom) + self.HUD_H
 
-    # ─────────────────────────────────────────────
-    # DRAWING
-    # ─────────────────────────────────────────────
     def draw(self, surf):
         game_h    = SCREEN_H - self.HUD_H
         view_surf = pygame.Surface((int(self.view_w), int(self.view_h)))
@@ -849,8 +818,8 @@ class Level2:
 
         self._draw_dynamic_room_lights(view_surf)
         self._draw_tasks(view_surf)
-        self._draw_stun_pickups(view_surf)       # ← gun drops on floor
-        self._draw_failed_experiment(view_surf)  # ← includes stun icon
+        self._draw_stun_pickups(view_surf)
+        self._draw_failed_experiment(view_surf)
         self._draw_player(view_surf)
 
         zoomed_view = pygame.transform.scale(view_surf, (SCREEN_W, game_h))
@@ -947,15 +916,12 @@ class Level2:
             vx, vy = self._world_to_view(pickup["wx"], pickup["wy"])
             if not (-60 < vx < surf.get_width()+60 and -60 < vy < surf.get_height()+60):
                 continue
-            # Pulsing glow
             glow_r = 20 + int(5 * math.sin(self.t * 0.12))
             gs = pygame.Surface((glow_r*2, glow_r*2), pygame.SRCALPHA)
             pygame.draw.circle(gs, (240, 200, 40, 65), (glow_r, glow_r), glow_r)
             surf.blit(gs, (vx-glow_r, vy-glow_r))
-            # Gun sprite (your actual image)
             rect = self.stun_gun_img.get_rect(center=(vx, vy))
             surf.blit(self.stun_gun_img, rect)
-            # Pick-up prompt
             draw_text(surf, "[F] STUN GUN", font_tiny, (240, 200, 40), vx, vy - 28)
 
     def _draw_failed_experiment(self, surf):
@@ -975,7 +941,6 @@ class Level2:
             surf.blit(ghost, rect.move(3, 0))
         surf.blit(img, rect)
 
-        # Stun icon (your actual image — already has "STUNNED" text baked in)
         if self.stun_status["active"]:
             icon_rect = self.stun_icon_img.get_rect(center=(vx, vy - 68))
             surf.blit(self.stun_icon_img, icon_rect)
@@ -988,7 +953,6 @@ class Level2:
         if self.immune_timer > 0 and self.immune_timer % 8 >= 4:
             return
 
-        # Shooting animation (level-3 ASTROS frames) takes priority
         if self.shooting_timer > 0 and self.astro_shoot_frames:
             frame_index = (
                 (self.shooting_anim_speed * ASTRO3_SHOOT_COUNT - self.shooting_timer)
@@ -1071,16 +1035,13 @@ class Level2:
         pygame.draw.line(surf, LINE, (left_w+25, 6), (left_w+25, hud_h-12), 1)
         pygame.draw.line(surf, LINE, (right_x-18, 6), (right_x-18, hud_h-12), 1)
 
-        # LEFT
         draw_text_left(surf, "MISSION",     font_tiny,  DIM, left_x, 12)
         draw_text_left(surf, "REPAIR SHIP", font_small, RED, left_x, 30)
 
-        # CENTER
         room_col = RED if danger_near and self.t % 30 < 16 else ORANGE
         draw_text(surf, room["name"].upper(), font_small, room_col, center_x, 17)
         draw_text(surf, "SYSTEM FAILURE",     font_tiny,  RED_DIM,  center_x, 35)
 
-        # RIGHT: suit HP
         draw_text_left(surf, "SUIT", font_tiny, GREEN_DIM, right_x, 10)
         draw_text(surf, f"{self.player_hp}/{self.player_max}", font_small,
                   GREEN if not danger_near else RED, right_x+105, 26)
@@ -1092,7 +1053,6 @@ class Level2:
             pygame.draw.rect(surf, GREEN if not danger_near else RED,
                              (hp_bar_x, hp_bar_y, hp_fill, hp_bar_h))
 
-        # RIGHT: stun charge pips
         draw_text_left(surf, "STUN", font_tiny, STUN_DIM, right_x, 46)
         for i in range(STUN_GUN_SPAWNS):
             pip_col = STUN_COL if i < self.stun_charges else STUN_DIM
@@ -1101,7 +1061,6 @@ class Level2:
         if self.stun_charges > 0:
             draw_text_left(surf, "[F] FIRE", font_tiny, STUN_COL, right_x+68, 46)
 
-        # BOTTOM: repair progress strip
         strip_y = hud_h - 10; strip_h = 6
         pygame.draw.rect(surf, (18,4,3), (0, strip_y, SCREEN_W, strip_h))
         fill_w = int(SCREEN_W * repaired / total)
